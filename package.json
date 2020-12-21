@@ -1,0 +1,26 @@
+{
+  "name": "lit-element-style",
+  "version": "0.0.1",
+  "description": "Shared component styles for LitElement",
+  "main": "lit-style.js",
+  "files": "src/*",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gitaarik/lit-style.git"
+  },
+  "keywords": [
+    "lit-style",
+    "lit-element",
+    "styles",
+    "css"
+  ],
+  "author": "gitaarik",
+  "license": "LGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/gitaarik/lit-style/issues"
+  },
+  "homepage": "https://github.com/gitaarik/lit-style#readme"
+}
