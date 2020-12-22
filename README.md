@@ -34,7 +34,7 @@ for more info.
 Generally it is the best idea to create a web component if you find yourself
 repeating a particular part of your template. Then you can put the styling
 inside that component and just use that component. However, for basic html tags
-like `h1`, `p` or `code`, it is a bit annoying to have to create a new
+like `<h1>`, `<p>` or `<ul>`, it is a bit annoying to have to create a new
 component just to have consistent styling. With LitStyle you can easily apply a
 common stylesheet to multiple components, so you don't have to style them
 separately in every component, or create custom components for these basic
