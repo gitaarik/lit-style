@@ -23,5 +23,5 @@ class MyComponent extends myStyles(LitElement) {
 }
 ```
 
-See the [demo app](https://gitaarik.github.io/lit-style/demo-app/build/#basic-usage)
+See the [demo app](https://gitaarik.github.io/lit-style/demo-app/build/)
 for more info.
