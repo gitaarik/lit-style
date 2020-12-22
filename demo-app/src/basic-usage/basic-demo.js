@@ -24,8 +24,8 @@ const myStyles = litStyle(css`
 `);
 
 
-@customElement('demo-component')
-export class MyDemoComponent extends DemoComponent(myStyles(LitElement)) {
+@customElement('basic-demo')
+export class BasicDemo extends DemoComponent(myStyles(LitElement)) {
 
     render() {
 

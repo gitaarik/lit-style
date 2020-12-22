@@ -1,23 +1,24 @@
 import { customElement, LitElement, html } from 'lit-element';
 import { DemoPage } from 'lit-element-demo-app-helpers';
 import 'lit-element-demo-app-helpers';
-import './basic-demo.js';
+import './precedence-demo.js';
 
 
-@customElement('basic-usage')
-export class BasicUsage extends DemoPage(LitElement) {
+@customElement('style-precedence')
+export class StylePrecedence extends DemoPage(LitElement) {
 
     render() {
 
         return html`
 
-            <h1>Basic Usage</h1>
+            <h1>Style precedence</h1>
 
             <p>
-                The <code-small>litStyle()</code-small> function takes some css
-                and returns a mixin that you can use on your
-                <code-small>LitElement</code-small> components. Then they will
-                include those styles.
+                The inner most (mixin) class gets precedence. So if your
+                component defines styles itself, they get precedence over any
+                mixin that you created with
+                <code-small>litStyle()</code-small>. And if you use multiple
+                mixins, the more inner mixins get precedence.
             </p>
 
             <h2>Example:</h2>
@@ -29,7 +30,7 @@ export class BasicUsage extends DemoPage(LitElement) {
             <h2>Output:</h2>
 
             <p>
-                <basic-demo></basic-demo>
+                <precedence-demo></precedence-demo>
             </p>
 
         `;
@@ -63,8 +64,21 @@ const myStyles = litStyle(css\`
 \`);
 
 
-@customElement('demo-component')
-export class MyDemoComponent extends myStyles(LitElement) {
+const moreImportantStyles = litStyle(css\`
+
+    h1 {
+        color: red;
+    }
+
+    h3 {
+        color: red;
+    }
+
+\`);
+
+
+@customElement('precedence-demo')
+export class PrecedenceDemo extends myStyles(moreImportantStyles(LitElement)) {
 
     render() {
 
@@ -75,6 +89,14 @@ export class MyDemoComponent extends myStyles(LitElement) {
             <p>This is a &lt;p&gt; tag</p>
         \`;
 
+    }
+
+    static get styles() {
+        return css\`
+            h2 {
+                color: red;
+            }
+        \`;
     }
 
 }`;
