@@ -16,7 +16,7 @@ npm install lit-element-style
 import { litStyle } from 'lit-element-style';
 import { LitElement, css } from 'lit-element';
 
-const myStyles = litStyle(css\`h1 { color: red; }\`);
+const myStyles = litStyle(css`h1 { color: red; }`);
 
 class MyComponent extends myStyles(LitElement) {
     // ...
