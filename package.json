@@ -1,6 +1,6 @@
 {
   "name": "lit-element-style",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Shared component styles for LitElement",
   "main": "lit-style.js",
   "files": "src/*",
