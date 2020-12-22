@@ -2,6 +2,7 @@ import { customElement, LitElement, html } from 'lit-element';
 import 'lit-element-demo-app-helpers';
 import './basic-usage/index';
 import './style-precedence/index';
+import './introduction-page';
 
 
 @customElement('lit-style-demo-app')
@@ -13,6 +14,11 @@ export class LitStyleDemoApp extends LitElement {
 
     get pages() {
         return [
+            {
+                hash: 'introduction-page',
+                title: 'Introduction',
+                template: html`<introduction-page></introduction-page>`
+            },
             {
                 hash: 'basic-usage',
                 title: 'Basic usage',
