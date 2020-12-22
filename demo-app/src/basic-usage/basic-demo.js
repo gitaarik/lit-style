@@ -1,6 +1,6 @@
 import { customElement, LitElement, html, css } from 'lit-element';
 import { DemoComponent } from 'lit-element-demo-app-helpers';
-import { litStyle } from '../lit-style.js';
+import { litStyle } from '@app/lit-style.js';
 
 
 const myStyles = litStyle(css`
