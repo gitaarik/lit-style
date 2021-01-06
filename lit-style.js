@@ -1,6 +1,3 @@
-import { LitElement, css } from 'lit-element';
-
-
 export function litStyle(myStyles) {
 
     return superclass => class extends superclass {
