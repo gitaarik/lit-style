@@ -1,6 +1,6 @@
 {
   "name": "lit-element-style",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Shared component styles for LitElement",
   "main": "lit-style.js",
   "files": "src/*",
@@ -22,5 +22,6 @@
   "bugs": {
     "url": "https://github.com/gitaarik/lit-style/issues"
   },
-  "homepage": "https://github.com/gitaarik/lit-style#readme"
+  "homepage": "https://github.com/gitaarik/lit-style#readme",
+  "dependencies": {}
 }

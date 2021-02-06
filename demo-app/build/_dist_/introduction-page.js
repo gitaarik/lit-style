@@ -31,10 +31,10 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.it
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 import { customElement, LitElement, html } from '../web_modules/lit-element.js';
-import { DemoPage } from '../web_modules/lit-element-demo-app-helpers.js';
-import '../web_modules/lit-element-demo-app-helpers.js';
-export let IntroductionPage = _decorate([customElement('introduction-page')], function (_initialize, _DemoPage) {
-  class IntroductionPage extends _DemoPage {
+import { LitDocsContent } from '../web_modules/lit-docs.js';
+import '../web_modules/lit-docs.js';
+export let IntroductionPage = _decorate([customElement('introduction-page')], function (_initialize, _LitDocsContent) {
+  class IntroductionPage extends _LitDocsContent {
     constructor(...args) {
       super(...args);
 
@@ -62,16 +62,19 @@ export let IntroductionPage = _decorate([customElement('introduction-page')], fu
             <h2>Installation</h2>
 
             <p>
-                <code-big .code=${'npm install lit-element-style'}></code-big>
+                <code-block .code=${'npm install lit-element-style'}></code-block>
             </p>
 
             <h2>Usage</h2>
 
             <p>
-                <code-big .code=${this.usageCode}></code-big>
+                <code-block .code=${this.usageCode}></code-block>
             </p>
 
-            <p>See <a href="#basic-usage">Basic usage</a> for more info.</p>
+            <p>
+                See <lit-docs-link href="basic-usage/">Basic usage</lit-docs-link>
+                for more info.
+            </p>
 
         `;
       }
@@ -90,4 +93,4 @@ class MyComponent extends myStyles(LitElement) {
       }
     }]
   };
-}, DemoPage(LitElement));
+}, LitDocsContent(LitElement));

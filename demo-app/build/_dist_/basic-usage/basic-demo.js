@@ -31,7 +31,7 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.it
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 import { customElement, LitElement, html, css } from '../../web_modules/lit-element.js';
-import { DemoComponent } from '../../web_modules/lit-element-demo-app-helpers.js';
+import '../../web_modules/lit-docs.js';
 import { litStyle } from '../lit-style.js';
 const myStyles = litStyle(css`
 
@@ -52,8 +52,8 @@ const myStyles = litStyle(css`
     }
 
 `);
-export let BasicDemo = _decorate([customElement('basic-demo')], function (_initialize, _DemoComponent) {
-  class BasicDemo extends _DemoComponent {
+export let BasicDemo = _decorate([customElement('basic-demo')], function (_initialize, _myStyles) {
+  class BasicDemo extends _myStyles {
     constructor(...args) {
       super(...args);
 
@@ -69,12 +69,14 @@ export let BasicDemo = _decorate([customElement('basic-demo')], function (_initi
       key: "render",
       value: function render() {
         return html`
-            <h1>This is a &lt;h1&gt; tag</h1>
-            <h2>This is a &lt;h2&gt; tag</h2>
-            <h3>This is a &lt;h3&gt; tag</h3>
-            <p>This is a &lt;p&gt; tag</p>
+            <showcase-box>
+                <h1>This is a &lt;h1&gt; tag</h1>
+                <h2>This is a &lt;h2&gt; tag</h2>
+                <h3>This is a &lt;h3&gt; tag</h3>
+                <p>This is a &lt;p&gt; tag</p>
+            </showcase-box>
         `;
       }
     }]
   };
-}, DemoComponent(myStyles(LitElement)));
+}, myStyles(LitElement));

@@ -1,5 +1,5 @@
 import { customElement, LitElement, html, css } from 'lit-element';
-import { DemoComponent } from 'lit-element-demo-app-helpers';
+import 'lit-docs';
 import { litStyle } from '@app/lit-style.js';
 
 
@@ -38,15 +38,17 @@ const moreImportantStyles = litStyle(css`
 
 
 @customElement('precedence-demo')
-export class PrecedenceDemo extends DemoComponent(myStyles(moreImportantStyles(LitElement))) {
+export class PrecedenceDemo extends myStyles(moreImportantStyles(LitElement)) {
 
     render() {
 
         return html`
-            <h1>This is a &lt;h1&gt; tag</h1>
-            <h2>This is a &lt;h2&gt; tag</h2>
-            <h3>This is a &lt;h3&gt; tag</h3>
-            <p>This is a &lt;p&gt; tag</p>
+            <showcase-box>
+                <h1>This is a &lt;h1&gt; tag</h1>
+                <h2>This is a &lt;h2&gt; tag</h2>
+                <h3>This is a &lt;h3&gt; tag</h3>
+                <p>This is a &lt;p&gt; tag</p>
+            </showcase-box>
         `;
 
     }

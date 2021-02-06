@@ -2526,4 +2526,4 @@ LitElement['finalized'] = true;
  */
 LitElement.render = render$1;
 
-export { LitElement as L, css as c, html as h };
+export { LitElement as L, css as c, html as h, render as r };

@@ -31,11 +31,11 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.it
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 import { customElement, LitElement, html } from '../../web_modules/lit-element.js';
-import { DemoPage } from '../../web_modules/lit-element-demo-app-helpers.js';
-import '../../web_modules/lit-element-demo-app-helpers.js';
+import { LitDocsContent } from '../../web_modules/lit-docs.js';
+import '../../web_modules/lit-docs.js';
 import './basic-demo.js';
-export let BasicUsage = _decorate([customElement('basic-usage')], function (_initialize, _DemoPage) {
-  class BasicUsage extends _DemoPage {
+export let BasicUsage = _decorate([customElement('basic-usage')], function (_initialize, _LitDocsContent) {
+  class BasicUsage extends _LitDocsContent {
     constructor(...args) {
       super(...args);
 
@@ -55,16 +55,16 @@ export let BasicUsage = _decorate([customElement('basic-usage')], function (_ini
             <h1>Basic Usage</h1>
 
             <p>
-                The <code-small>litStyle()</code-small> function takes some css
+                The <code>litStyle()</code> function takes some css
                 and returns a mixin that you can use on your
-                <code-small>LitElement</code-small> components. Then they will
+                <code>LitElement</code> components. Then they will
                 include those styles.
             </p>
 
             <h2>Example:</h2>
 
             <p>
-                <code-big .code=${this.demoComponentCode}></code-big>
+                <code-block .code=${this.litStyleCode}></code-block>
             </p>
 
             <h2>Output:</h2>
@@ -77,8 +77,8 @@ export let BasicUsage = _decorate([customElement('basic-usage')], function (_ini
       }
     }, {
       kind: "get",
-      key: "demoComponentCode",
-      value: function demoComponentCode() {
+      key: "litStyleCode",
+      value: function litStyleCode() {
         return `import { customElement, LitElement, html, css } from 'lit-element';
 import { litStyle } from 'lit-element-style';
 
@@ -122,4 +122,4 @@ export class MyDemoComponent extends myStyles(LitElement) {
       }
     }]
   };
-}, DemoPage(LitElement));
+}, LitDocsContent(LitElement));

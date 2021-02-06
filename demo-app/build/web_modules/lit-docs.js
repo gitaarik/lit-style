@@ -1,4 +1,4 @@
-import { L as LitElement, h as html, c as css } from './common/lit-element-7d33ee9a.js';
+import { L as LitElement, h as html, c as css, r as render } from './common/lit-element-6b065c14.js';
 
 function deepFreeze(obj) {
     if (obj instanceof Map) {
@@ -81,155 +81,6 @@ function inherit(original, ...objects) {
   });
   return /** @type {T} */ (result);
 }
-
-/* Stream merging */
-
-/**
- * @typedef Event
- * @property {'start'|'stop'} event
- * @property {number} offset
- * @property {Node} node
- */
-
-/**
- * @param {Node} node
- */
-function tag(node) {
-  return node.nodeName.toLowerCase();
-}
-
-/**
- * @param {Node} node
- */
-function nodeStream(node) {
-  /** @type Event[] */
-  const result = [];
-  (function _nodeStream(node, offset) {
-    for (let child = node.firstChild; child; child = child.nextSibling) {
-      if (child.nodeType === 3) {
-        offset += child.nodeValue.length;
-      } else if (child.nodeType === 1) {
-        result.push({
-          event: 'start',
-          offset: offset,
-          node: child
-        });
-        offset = _nodeStream(child, offset);
-        // Prevent void elements from having an end tag that would actually
-        // double them in the output. There are more void elements in HTML
-        // but we list only those realistically expected in code display.
-        if (!tag(child).match(/br|hr|img|input/)) {
-          result.push({
-            event: 'stop',
-            offset: offset,
-            node: child
-          });
-        }
-      }
-    }
-    return offset;
-  })(node, 0);
-  return result;
-}
-
-/**
- * @param {any} original - the original stream
- * @param {any} highlighted - stream of the highlighted source
- * @param {string} value - the original source itself
- */
-function mergeStreams(original, highlighted, value) {
-  let processed = 0;
-  let result = '';
-  const nodeStack = [];
-
-  function selectStream() {
-    if (!original.length || !highlighted.length) {
-      return original.length ? original : highlighted;
-    }
-    if (original[0].offset !== highlighted[0].offset) {
-      return (original[0].offset < highlighted[0].offset) ? original : highlighted;
-    }
-
-    /*
-    To avoid starting the stream just before it should stop the order is
-    ensured that original always starts first and closes last:
-
-    if (event1 == 'start' && event2 == 'start')
-      return original;
-    if (event1 == 'start' && event2 == 'stop')
-      return highlighted;
-    if (event1 == 'stop' && event2 == 'start')
-      return original;
-    if (event1 == 'stop' && event2 == 'stop')
-      return highlighted;
-
-    ... which is collapsed to:
-    */
-    return highlighted[0].event === 'start' ? original : highlighted;
-  }
-
-  /**
-   * @param {Node} node
-   */
-  function open(node) {
-    /** @param {Attr} attr */
-    function attributeString(attr) {
-      return ' ' + attr.nodeName + '="' + escapeHTML(attr.value) + '"';
-    }
-    // @ts-ignore
-    result += '<' + tag(node) + [].map.call(node.attributes, attributeString).join('') + '>';
-  }
-
-  /**
-   * @param {Node} node
-   */
-  function close(node) {
-    result += '</' + tag(node) + '>';
-  }
-
-  /**
-   * @param {Event} event
-   */
-  function render(event) {
-    (event.event === 'start' ? open : close)(event.node);
-  }
-
-  while (original.length || highlighted.length) {
-    let stream = selectStream();
-    result += escapeHTML(value.substring(processed, stream[0].offset));
-    processed = stream[0].offset;
-    if (stream === original) {
-      /*
-      On any opening or closing tag of the original markup we first close
-      the entire highlighted node stack, then render the original tag along
-      with all the following original tags at the same offset and then
-      reopen all the tags on the highlighted stack.
-      */
-      nodeStack.reverse().forEach(close);
-      do {
-        render(stream.splice(0, 1)[0]);
-        stream = selectStream();
-      } while (stream === original && stream.length && stream[0].offset === processed);
-      nodeStack.reverse().forEach(open);
-    } else {
-      if (stream[0].event === 'start') {
-        nodeStack.push(stream[0].node);
-      } else {
-        nodeStack.pop();
-      }
-      render(stream.splice(0, 1)[0]);
-    }
-  }
-  return result + escapeHTML(value.substr(processed));
-}
-
-var utils = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    escapeHTML: escapeHTML,
-    inherit: inherit,
-    nodeStream: nodeStream,
-    mergeStreams: mergeStreams
-});
 
 /**
  * @typedef {object} Renderer
@@ -509,6 +360,18 @@ function concat(...args) {
 }
 
 /**
+ * Any of the passed expresssions may match
+ *
+ * Creates a huge this | this | that | that match
+ * @param {(RegExp | string)[] } args
+ * @returns {string}
+ */
+function either(...args) {
+  const joined = '(' + args.map((x) => source(x)).join("|") + ")";
+  return joined;
+}
+
+/**
  * @param {RegExp} re
  * @returns {number}
  */
@@ -773,6 +636,88 @@ var MODES = /*#__PURE__*/Object.freeze({
     END_SAME_AS_BEGIN: END_SAME_AS_BEGIN
 });
 
+// Grammar extensions / plugins
+// See: https://github.com/highlightjs/highlight.js/issues/2833
+
+// Grammar extensions allow "syntactic sugar" to be added to the grammar modes
+// without requiring any underlying changes to the compiler internals.
+
+// `compileMatch` being the perfect small example of now allowing a grammar
+// author to write `match` when they desire to match a single expression rather
+// than being forced to use `begin`.  The extension then just moves `match` into
+// `begin` when it runs.  Ie, no features have been added, but we've just made
+// the experience of writing (and reading grammars) a little bit nicer.
+
+// ------
+
+// TODO: We need negative look-behind support to do this properly
+/**
+ * Skip a match if it has a preceding dot
+ *
+ * This is used for `beginKeywords` to prevent matching expressions such as
+ * `bob.keyword.do()`. The mode compiler automatically wires this up as a
+ * special _internal_ 'on:begin' callback for modes with `beginKeywords`
+ * @param {RegExpMatchArray} match
+ * @param {CallbackResponse} response
+ */
+function skipIfhasPrecedingDot(match, response) {
+  const before = match.input[match.index - 1];
+  if (before === ".") {
+    response.ignoreMatch();
+  }
+}
+
+
+/**
+ * `beginKeywords` syntactic sugar
+ * @type {CompilerExt}
+ */
+function beginKeywords(mode, parent) {
+  if (!parent) return;
+  if (!mode.beginKeywords) return;
+
+  // for languages with keywords that include non-word characters checking for
+  // a word boundary is not sufficient, so instead we check for a word boundary
+  // or whitespace - this does no harm in any case since our keyword engine
+  // doesn't allow spaces in keywords anyways and we still check for the boundary
+  // first
+  mode.begin = '\\b(' + mode.beginKeywords.split(' ').join('|') + ')(?!\\.)(?=\\b|\\s)';
+  mode.__beforeBegin = skipIfhasPrecedingDot;
+  mode.keywords = mode.keywords || mode.beginKeywords;
+  delete mode.beginKeywords;
+}
+
+/**
+ * Allow `illegal` to contain an array of illegal values
+ * @type {CompilerExt}
+ */
+function compileIllegal(mode, _parent) {
+  if (!Array.isArray(mode.illegal)) return;
+
+  mode.illegal = either(...mode.illegal);
+}
+
+/**
+ * `match` to match a single expression for readability
+ * @type {CompilerExt}
+ */
+function compileMatch(mode, _parent) {
+  if (!mode.match) return;
+  if (mode.begin || mode.end) throw new Error("begin & end are not supported with match");
+
+  mode.begin = mode.match;
+  delete mode.match;
+}
+
+/**
+ * provides the default 1 relevance to all modes
+ * @type {CompilerExt}
+ */
+function compileRelevance(mode, _parent) {
+  // eslint-disable-next-line no-undefined
+  if (mode.relevance === undefined) mode.relevance = 1;
+}
+
 // keywords that should have no default relevance value
 const COMMON_KEYWORDS = [
   'of',
@@ -788,6 +733,72 @@ const COMMON_KEYWORDS = [
   'value' // common variable name
 ];
 
+/**
+ * Given raw keywords from a language definition, compile them.
+ *
+ * @param {string | Record<string,string>} rawKeywords
+ * @param {boolean} caseInsensitive
+ */
+function compileKeywords(rawKeywords, caseInsensitive) {
+  /** @type KeywordDict */
+  const compiledKeywords = {};
+
+  if (typeof rawKeywords === 'string') { // string
+    splitAndCompile('keyword', rawKeywords);
+  } else {
+    Object.keys(rawKeywords).forEach(function(className) {
+      splitAndCompile(className, rawKeywords[className]);
+    });
+  }
+  return compiledKeywords;
+
+  // ---
+
+  /**
+   * Compiles an individual list of keywords
+   *
+   * Ex: "for if when while|5"
+   *
+   * @param {string} className
+   * @param {string} keywordList
+   */
+  function splitAndCompile(className, keywordList) {
+    if (caseInsensitive) {
+      keywordList = keywordList.toLowerCase();
+    }
+    keywordList.split(' ').forEach(function(keyword) {
+      const pair = keyword.split('|');
+      compiledKeywords[pair[0]] = [className, scoreForKeyword(pair[0], pair[1])];
+    });
+  }
+}
+
+/**
+ * Returns the proper score for a given keyword
+ *
+ * Also takes into account comment keywords, which will be scored 0 UNLESS
+ * another score has been manually assigned.
+ * @param {string} keyword
+ * @param {string} [providedScore]
+ */
+function scoreForKeyword(keyword, providedScore) {
+  // manual scores always win over common keywords
+  // so you can force a score of 1 if you really insist
+  if (providedScore) {
+    return Number(providedScore);
+  }
+
+  return commonKeyword(keyword) ? 0 : 1;
+}
+
+/**
+ * Determines if a given keyword is common or not
+ *
+ * @param {string} keyword */
+function commonKeyword(keyword) {
+  return COMMON_KEYWORDS.includes(keyword.toLowerCase());
+}
+
 // compilation
 
 /**
@@ -796,9 +807,10 @@ const COMMON_KEYWORDS = [
  * Given the raw result of a language definition (Language), compiles this so
  * that it is ready for highlighting code.
  * @param {Language} language
+ * @param {{plugins: HLJSPlugin[]}} opts
  * @returns {CompiledLanguage}
  */
-function compileLanguage(language) {
+function compileLanguage(language, { plugins }) {
   /**
    * Builds a regex with the case sensativility of the current language
    *
@@ -1009,31 +1021,14 @@ function compileLanguage(language) {
 
     mode.contains.forEach(term => mm.addRule(term.begin, { rule: term, type: "begin" }));
 
-    if (mode.terminator_end) {
-      mm.addRule(mode.terminator_end, { type: "end" });
+    if (mode.terminatorEnd) {
+      mm.addRule(mode.terminatorEnd, { type: "end" });
     }
     if (mode.illegal) {
       mm.addRule(mode.illegal, { type: "illegal" });
     }
 
     return mm;
-  }
-
-  // TODO: We need negative look-behind support to do this properly
-  /**
-   * Skip a match if it has a preceding dot
-   *
-   * This is used for `beginKeywords` to prevent matching expressions such as
-   * `bob.keyword.do()`. The mode compiler automatically wires this up as a
-   * special _internal_ 'on:begin' callback for modes with `beginKeywords`
-   * @param {RegExpMatchArray} match
-   * @param {CallbackResponse} response
-   */
-  function skipIfhasPrecedingDot(match, response) {
-    const before = match.input[match.index - 1];
-    if (before === ".") {
-      response.ignoreMatch();
-    }
   }
 
   /** skip vs abort vs ignore
@@ -1078,12 +1073,28 @@ function compileLanguage(language) {
   function compileMode(mode, parent) {
     const cmode = /** @type CompiledMode */ (mode);
     if (mode.compiled) return cmode;
-    mode.compiled = true;
+
+    [
+      // do this early so compiler extensions generally don't have to worry about
+      // the distinction between match/begin
+      compileMatch
+    ].forEach(ext => ext(mode, parent));
+
+    language.compilerExtensions.forEach(ext => ext(mode, parent));
 
     // __beforeBegin is considered private API, internal use only
     mode.__beforeBegin = null;
 
-    mode.keywords = mode.keywords || mode.beginKeywords;
+    [
+      beginKeywords,
+      // do this later so compiler extensions that come earlier have access to the
+      // raw array if they wanted to perhaps manipulate it, etc.
+      compileIllegal,
+      // default to 1 relevance if not specified
+      compileRelevance
+    ].forEach(ext => ext(mode, parent));
+
+    mode.compiled = true;
 
     let keywordPattern = null;
     if (typeof mode.keywords === "object") {
@@ -1102,31 +1113,21 @@ function compileLanguage(language) {
 
     // `mode.lexemes` was the old standard before we added and now recommend
     // using `keywords.$pattern` to pass the keyword pattern
-    cmode.keywordPatternRe = langRe(mode.lexemes || keywordPattern || /\w+/, true);
+    keywordPattern = keywordPattern || mode.lexemes || /\w+/;
+    cmode.keywordPatternRe = langRe(keywordPattern, true);
 
     if (parent) {
-      if (mode.beginKeywords) {
-        // for languages with keywords that include non-word characters checking for
-        // a word boundary is not sufficient, so instead we check for a word boundary
-        // or whitespace - this does no harm in any case since our keyword engine
-        // doesn't allow spaces in keywords anyways and we still check for the boundary
-        // first
-        mode.begin = '\\b(' + mode.beginKeywords.split(' ').join('|') + ')(?!\\.)(?=\\b|\\s)';
-        mode.__beforeBegin = skipIfhasPrecedingDot;
-      }
       if (!mode.begin) mode.begin = /\B|\b/;
       cmode.beginRe = langRe(mode.begin);
       if (mode.endSameAsBegin) mode.end = mode.begin;
       if (!mode.end && !mode.endsWithParent) mode.end = /\B|\b/;
       if (mode.end) cmode.endRe = langRe(mode.end);
-      cmode.terminator_end = source(mode.end) || '';
-      if (mode.endsWithParent && parent.terminator_end) {
-        cmode.terminator_end += (mode.end ? '|' : '') + parent.terminator_end;
+      cmode.terminatorEnd = source(mode.end) || '';
+      if (mode.endsWithParent && parent.terminatorEnd) {
+        cmode.terminatorEnd += (mode.end ? '|' : '') + parent.terminatorEnd;
       }
     }
-    if (mode.illegal) cmode.illegalRe = langRe(mode.illegal);
-    // eslint-disable-next-line no-undefined
-    if (mode.relevance === undefined) mode.relevance = 1;
+    if (mode.illegal) cmode.illegalRe = langRe(/** @type {RegExp | string} */ (mode.illegal));
     if (!mode.contains) mode.contains = [];
 
     mode.contains = [].concat(...mode.contains.map(function(c) {
@@ -1141,6 +1142,8 @@ function compileLanguage(language) {
     cmode.matcher = buildModeRegex(cmode);
     return cmode;
   }
+
+  if (!language.compilerExtensions) language.compilerExtensions = [];
 
   // self is not valid at the top-level
   if (language.contains && language.contains.includes('self')) {
@@ -1181,8 +1184,8 @@ function dependencyOnParent(mode) {
  * @returns {Mode | Mode[]}
  * */
 function expandOrCloneMode(mode) {
-  if (mode.variants && !mode.cached_variants) {
-    mode.cached_variants = mode.variants.map(function(variant) {
+  if (mode.variants && !mode.cachedVariants) {
+    mode.cachedVariants = mode.variants.map(function(variant) {
       return inherit(mode, { variants: null }, variant);
     });
   }
@@ -1190,8 +1193,8 @@ function expandOrCloneMode(mode) {
   // EXPAND
   // if we have variants then essentially "replace" the mode with the variants
   // this happens in compileMode, where this function is called from
-  if (mode.cached_variants) {
-    return mode.cached_variants;
+  if (mode.cachedVariants) {
+    return mode.cachedVariants;
   }
 
   // CLONE
@@ -1210,77 +1213,7 @@ function expandOrCloneMode(mode) {
   return mode;
 }
 
-/***********************************************
-  Keywords
-***********************************************/
-
-/**
- * Given raw keywords from a language definition, compile them.
- *
- * @param {string | Record<string,string>} rawKeywords
- * @param {boolean} caseInsensitive
- */
-function compileKeywords(rawKeywords, caseInsensitive) {
-  /** @type KeywordDict */
-  const compiledKeywords = {};
-
-  if (typeof rawKeywords === 'string') { // string
-    splitAndCompile('keyword', rawKeywords);
-  } else {
-    Object.keys(rawKeywords).forEach(function(className) {
-      splitAndCompile(className, rawKeywords[className]);
-    });
-  }
-  return compiledKeywords;
-
-  // ---
-
-  /**
-   * Compiles an individual list of keywords
-   *
-   * Ex: "for if when while|5"
-   *
-   * @param {string} className
-   * @param {string} keywordList
-   */
-  function splitAndCompile(className, keywordList) {
-    if (caseInsensitive) {
-      keywordList = keywordList.toLowerCase();
-    }
-    keywordList.split(' ').forEach(function(keyword) {
-      const pair = keyword.split('|');
-      compiledKeywords[pair[0]] = [className, scoreForKeyword(pair[0], pair[1])];
-    });
-  }
-}
-
-/**
- * Returns the proper score for a given keyword
- *
- * Also takes into account comment keywords, which will be scored 0 UNLESS
- * another score has been manually assigned.
- * @param {string} keyword
- * @param {string} [providedScore]
- */
-function scoreForKeyword(keyword, providedScore) {
-  // manual scores always win over common keywords
-  // so you can force a score of 1 if you really insist
-  if (providedScore) {
-    return Number(providedScore);
-  }
-
-  return commonKeyword(keyword) ? 0 : 1;
-}
-
-/**
- * Determines if a given keyword is common or not
- *
- * @param {string} keyword */
-function commonKeyword(keyword) {
-  return COMMON_KEYWORDS.includes(keyword.toLowerCase());
-}
-
-var version = "10.4.1";
+var version = "10.5.0";
 
 // @ts-nocheck
 
@@ -1300,7 +1233,7 @@ function BuildVuePlugin(hljs) {
     computed: {
       className() {
         if (this.unknownLanguage) return "";
-  
+
         return "hljs " + this.detectedLanguage;
       },
       highlighted() {
@@ -1310,8 +1243,8 @@ function BuildVuePlugin(hljs) {
           this.unknownLanguage = true;
           return escapeHTML(this.code);
         }
-  
-        let result;
+
+        let result = {};
         if (this.autoDetect) {
           result = hljs.highlightAuto(this.code);
           this.detectedLanguage = result.language;
@@ -1334,12 +1267,13 @@ function BuildVuePlugin(hljs) {
       return createElement("pre", {}, [
         createElement("code", {
           class: this.className,
-          domProps: { innerHTML: this.highlighted }})
+          domProps: { innerHTML: this.highlighted }
+        })
       ]);
     }
     // template: `<pre><code :class="className" v-html="highlighted"></code></pre>`
   };
-  
+
   const VuePlugin = {
     install(Vue) {
       Vue.component('highlightjs', Component);
@@ -1349,6 +1283,191 @@ function BuildVuePlugin(hljs) {
   return { Component, VuePlugin };
 }
 
+/* plugin itself */
+
+/** @type {HLJSPlugin} */
+const mergeHTMLPlugin = {
+  "after:highlightBlock": ({ block, result, text }) => {
+    const originalStream = nodeStream(block);
+    if (!originalStream.length) return;
+
+    const resultNode = document.createElement('div');
+    resultNode.innerHTML = result.value;
+    result.value = mergeStreams(originalStream, nodeStream(resultNode), text);
+  }
+};
+
+/* Stream merging support functions */
+
+/**
+ * @typedef Event
+ * @property {'start'|'stop'} event
+ * @property {number} offset
+ * @property {Node} node
+ */
+
+/**
+ * @param {Node} node
+ */
+function tag(node) {
+  return node.nodeName.toLowerCase();
+}
+
+/**
+ * @param {Node} node
+ */
+function nodeStream(node) {
+  /** @type Event[] */
+  const result = [];
+  (function _nodeStream(node, offset) {
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (child.nodeType === 3) {
+        offset += child.nodeValue.length;
+      } else if (child.nodeType === 1) {
+        result.push({
+          event: 'start',
+          offset: offset,
+          node: child
+        });
+        offset = _nodeStream(child, offset);
+        // Prevent void elements from having an end tag that would actually
+        // double them in the output. There are more void elements in HTML
+        // but we list only those realistically expected in code display.
+        if (!tag(child).match(/br|hr|img|input/)) {
+          result.push({
+            event: 'stop',
+            offset: offset,
+            node: child
+          });
+        }
+      }
+    }
+    return offset;
+  })(node, 0);
+  return result;
+}
+
+/**
+ * @param {any} original - the original stream
+ * @param {any} highlighted - stream of the highlighted source
+ * @param {string} value - the original source itself
+ */
+function mergeStreams(original, highlighted, value) {
+  let processed = 0;
+  let result = '';
+  const nodeStack = [];
+
+  function selectStream() {
+    if (!original.length || !highlighted.length) {
+      return original.length ? original : highlighted;
+    }
+    if (original[0].offset !== highlighted[0].offset) {
+      return (original[0].offset < highlighted[0].offset) ? original : highlighted;
+    }
+
+    /*
+    To avoid starting the stream just before it should stop the order is
+    ensured that original always starts first and closes last:
+
+    if (event1 == 'start' && event2 == 'start')
+      return original;
+    if (event1 == 'start' && event2 == 'stop')
+      return highlighted;
+    if (event1 == 'stop' && event2 == 'start')
+      return original;
+    if (event1 == 'stop' && event2 == 'stop')
+      return highlighted;
+
+    ... which is collapsed to:
+    */
+    return highlighted[0].event === 'start' ? original : highlighted;
+  }
+
+  /**
+   * @param {Node} node
+   */
+  function open(node) {
+    /** @param {Attr} attr */
+    function attributeString(attr) {
+      return ' ' + attr.nodeName + '="' + escapeHTML(attr.value) + '"';
+    }
+    // @ts-ignore
+    result += '<' + tag(node) + [].map.call(node.attributes, attributeString).join('') + '>';
+  }
+
+  /**
+   * @param {Node} node
+   */
+  function close(node) {
+    result += '</' + tag(node) + '>';
+  }
+
+  /**
+   * @param {Event} event
+   */
+  function render(event) {
+    (event.event === 'start' ? open : close)(event.node);
+  }
+
+  while (original.length || highlighted.length) {
+    let stream = selectStream();
+    result += escapeHTML(value.substring(processed, stream[0].offset));
+    processed = stream[0].offset;
+    if (stream === original) {
+      /*
+      On any opening or closing tag of the original markup we first close
+      the entire highlighted node stack, then render the original tag along
+      with all the following original tags at the same offset and then
+      reopen all the tags on the highlighted stack.
+      */
+      nodeStack.reverse().forEach(close);
+      do {
+        render(stream.splice(0, 1)[0]);
+        stream = selectStream();
+      } while (stream === original && stream.length && stream[0].offset === processed);
+      nodeStack.reverse().forEach(open);
+    } else {
+      if (stream[0].event === 'start') {
+        nodeStack.push(stream[0].node);
+      } else {
+        nodeStack.pop();
+      }
+      render(stream.splice(0, 1)[0]);
+    }
+  }
+  return result + escapeHTML(value.substr(processed));
+}
+
+/*
+
+For the reasoning behind this please see:
+https://github.com/highlightjs/highlight.js/issues/2880#issuecomment-747275419
+
+*/
+
+/**
+ * @param {string} message
+ */
+const error = (message) => {
+  console.error(message);
+};
+
+/**
+ * @param {string} message
+ * @param {any} args
+ */
+const warn = (message, ...args) => {
+  console.log(`WARN: ${message}`, ...args);
+};
+
+/**
+ * @param {string} version
+ * @param {string} message
+ */
+const deprecated = (version, message) => {
+  console.log(`Deprecated as of ${version}. ${message}`);
+};
+
 /*
 Syntax highlighting with language autodetection.
 https://highlightjs.org/
@@ -1356,8 +1475,6 @@ https://highlightjs.org/
 
 const escape$1 = escapeHTML;
 const inherit$1 = inherit;
-
-const { nodeStream: nodeStream$1, mergeStreams: mergeStreams$1 } = utils;
 const NO_MATCH = Symbol("nomatch");
 
 /**
@@ -1365,10 +1482,6 @@ const NO_MATCH = Symbol("nomatch");
  * @returns {HLJSApi}
  */
 const HLJS = function(hljs) {
-  // Convenience variables for build-in objects
-  /** @type {unknown[]} */
-  const ArrayProto = [];
-
   // Global internal variables used within the highlight.js library.
   /** @type {Record<string, Language>} */
   const languages = Object.create(null);
@@ -1423,8 +1536,8 @@ const HLJS = function(hljs) {
     if (match) {
       const language = getLanguage(match[1]);
       if (!language) {
-        console.warn(LANGUAGE_NOT_FOUND.replace("{}", match[1]));
-        console.warn("Falling back to no-highlight mode for this block.", block);
+        warn(LANGUAGE_NOT_FOUND.replace("{}", match[1]));
+        warn("Falling back to no-highlight mode for this block.", block);
       }
       return language ? match[1] : 'no-highlight';
     }
@@ -1451,7 +1564,7 @@ const HLJS = function(hljs) {
    * @property {boolean} illegal - indicates whether any illegal matches were found
   */
   function highlight(languageName, code, ignoreIllegals, continuation) {
-    /** @type {{ code: string, language: string, result?: any }} */
+    /** @type {BeforeHighlightContext} */
     const context = {
       code,
       language: languageName
@@ -1805,11 +1918,11 @@ const HLJS = function(hljs) {
 
     const language = getLanguage(languageName);
     if (!language) {
-      console.error(LANGUAGE_NOT_FOUND.replace("{}", languageName));
+      error(LANGUAGE_NOT_FOUND.replace("{}", languageName));
       throw new Error('Unknown language: "' + languageName + '"');
     }
 
-    const md = compileLanguage(language);
+    const md = compileLanguage(language, { plugins });
     let result = '';
     /** @type {CompiledMode} */
     let top = continuation || md;
@@ -1988,24 +2101,42 @@ const HLJS = function(hljs) {
   /**
    * Builds new class name for block given the language name
    *
-   * @param {string} prevClassName
+   * @param {HTMLElement} element
    * @param {string} [currentLang]
    * @param {string} [resultLang]
    */
-  function buildClassName(prevClassName, currentLang, resultLang) {
+  function updateClassName(element, currentLang, resultLang) {
     const language = currentLang ? aliases[currentLang] : resultLang;
-    const result = [prevClassName.trim()];
 
-    if (!prevClassName.match(/\bhljs\b/)) {
-      result.push('hljs');
-    }
-
-    if (!prevClassName.includes(language)) {
-      result.push(language);
-    }
-
-    return result.join(' ').trim();
+    element.classList.add("hljs");
+    if (language) element.classList.add(language);
   }
+
+  /** @type {HLJSPlugin} */
+  const brPlugin = {
+    "before:highlightBlock": ({ block }) => {
+      if (options.useBR) {
+        block.innerHTML = block.innerHTML.replace(/\n/g, '').replace(/<br[ /]*>/g, '\n');
+      }
+    },
+    "after:highlightBlock": ({ result }) => {
+      if (options.useBR) {
+        result.value = result.value.replace(/\n/g, "<br>");
+      }
+    }
+  };
+
+  const TAB_REPLACE_RE = /^(<[^>]+>|\t)+/gm;
+  /** @type {HLJSPlugin} */
+  const tabReplacePlugin = {
+    "after:highlightBlock": ({ result }) => {
+      if (options.tabReplace) {
+        result.value = result.value.replace(TAB_REPLACE_RE, (m) =>
+          m.replace(/\t/g, options.tabReplace)
+        );
+      }
+    }
+  };
 
   /**
    * Applies highlighting to a DOM node containing code. Accepts a DOM node and
@@ -2023,27 +2154,14 @@ const HLJS = function(hljs) {
     fire("before:highlightBlock",
       { block: element, language: language });
 
-    if (options.useBR) {
-      node = document.createElement('div');
-      node.innerHTML = element.innerHTML.replace(/\n/g, '').replace(/<br[ /]*>/g, '\n');
-    } else {
-      node = element;
-    }
+    node = element;
     const text = node.textContent;
     const result = language ? highlight(language, text, true) : highlightAuto(text);
 
-    const originalStream = nodeStream$1(node);
-    if (originalStream.length) {
-      const resultNode = document.createElement('div');
-      resultNode.innerHTML = result.value;
-      result.value = mergeStreams$1(originalStream, nodeStream$1(resultNode), text);
-    }
-    result.value = fixMarkup(result.value);
-
-    fire("after:highlightBlock", { block: element, result: result });
+    fire("after:highlightBlock", { block: element, result, text });
 
     element.innerHTML = result.value;
-    element.className = buildClassName(element.className, language, result.language);
+    updateClassName(element, language, result.language);
     element.result = {
       language: result.language,
       // TODO: remove with version 11.0
@@ -2067,8 +2185,8 @@ const HLJS = function(hljs) {
    */
   function configure(userOptions) {
     if (userOptions.useBR) {
-      console.warn("'useBR' option is deprecated and will be removed entirely in v11.0");
-      console.warn("Please see https://github.com/highlightjs/highlight.js/issues/2559");
+      deprecated("10.3.0", "'useBR' will be removed entirely in v11.0");
+      deprecated("10.3.0", "Please see https://github.com/highlightjs/highlight.js/issues/2559");
     }
     options = inherit$1(options, userOptions);
   }
@@ -2083,7 +2201,7 @@ const HLJS = function(hljs) {
     initHighlighting.called = true;
 
     const blocks = document.querySelectorAll('pre code');
-    ArrayProto.forEach.call(blocks, highlightBlock);
+    blocks.forEach(highlightBlock);
   };
 
   // Higlights all when DOMContentLoaded fires
@@ -2102,10 +2220,10 @@ const HLJS = function(hljs) {
     let lang = null;
     try {
       lang = languageDefinition(hljs);
-    } catch (error) {
-      console.error("Language definition for '{}' could not be registered.".replace("{}", languageName));
+    } catch (error$1) {
+      error("Language definition for '{}' could not be registered.".replace("{}", languageName));
       // hard or soft error
-      if (!SAFE_MODE) { throw error; } else { console.error(error); }
+      if (!SAFE_MODE) { throw error$1; } else { error(error$1); }
       // languages that have serious errors are replaced with essentially a
       // "plaintext" stand-in so that the code blocks will still get normal
       // css classes applied to them - and one bad language won't break the
@@ -2139,8 +2257,8 @@ const HLJS = function(hljs) {
     @returns {Language | never}
   */
   function requireLanguage(name) {
-    console.warn("requireLanguage is deprecated and will be removed entirely in the future.");
-    console.warn("Please see https://github.com/highlightjs/highlight.js/pull/2844");
+    deprecated("10.4.0", "requireLanguage will be removed entirely in v11.");
+    deprecated("10.4.0", "Please see https://github.com/highlightjs/highlight.js/pull/2844");
 
     const lang = getLanguage(name);
     if (lang) { return lang; }
@@ -2207,8 +2325,8 @@ const HLJS = function(hljs) {
   @returns {string}
   */
   function deprecateFixMarkup(arg) {
-    console.warn("fixMarkup is deprecated and will be removed entirely in v11.0");
-    console.warn("Please see https://github.com/highlightjs/highlight.js/issues/2534");
+    deprecated("10.2.0", "fixMarkup will be removed entirely in v11.0");
+    deprecated("10.2.0", "Please see https://github.com/highlightjs/highlight.js/issues/2534");
 
     return fixMarkup(arg);
   }
@@ -2249,6 +2367,10 @@ const HLJS = function(hljs) {
   // merge all the modes/regexs into our main object
   Object.assign(hljs, MODES);
 
+  // built-in plugins, likely to be moved out of core in the future
+  hljs.addPlugin(brPlugin); // slated to be removed in v11
+  hljs.addPlugin(mergeHTMLPlugin);
+  hljs.addPlugin(tabReplacePlugin);
   return hljs;
 };
 
@@ -2562,7 +2684,7 @@ function javascript(hljs) {
     ]
   };
   const JSDOC_COMMENT = hljs.COMMENT(
-    '/\\*\\*',
+    /\/\*\*(?!\/)/,
     '\\*/',
     {
       relevance: 0,
@@ -2907,7 +3029,7 @@ function concat$2(...args) {
  * @param {(RegExp | string)[] } args
  * @returns {string}
  */
-function either(...args) {
+function either$1(...args) {
   const joined = '(' + args.map((x) => source$2(x)).join("|") + ")";
   return joined;
 }
@@ -2916,30 +3038,31 @@ function either(...args) {
 Language: HTML, XML
 Website: https://www.w3.org/XML/
 Category: common
+Audit: 2020
 */
 
 /** @type LanguageFn */
 function xml(hljs) {
   // Element names can contain letters, digits, hyphens, underscores, and periods
   const TAG_NAME_RE = concat$2(/[A-Z_]/, optional(/[A-Z0-9_.-]+:/), /[A-Z0-9_.-]*/);
-  const XML_IDENT_RE = '[A-Za-z0-9\\._:-]+';
+  const XML_IDENT_RE = /[A-Za-z0-9._:-]+/;
   const XML_ENTITIES = {
     className: 'symbol',
-    begin: '&[a-z]+;|&#[0-9]+;|&#x[a-f0-9]+;'
+    begin: /&[a-z]+;|&#[0-9]+;|&#x[a-f0-9]+;/
   };
   const XML_META_KEYWORDS = {
-    begin: '\\s',
+    begin: /\s/,
     contains: [
       {
         className: 'meta-keyword',
-        begin: '#?[a-z_][a-z1-9_-]+',
-        illegal: '\\n'
+        begin: /#?[a-z_][a-z1-9_-]+/,
+        illegal: /\n/
       }
     ]
   };
   const XML_META_PAR_KEYWORDS = hljs.inherit(XML_META_KEYWORDS, {
-    begin: '\\(',
-    end: '\\)'
+    begin: /\(/,
+    end: /\)/
   });
   const APOS_META_STRING_MODE = hljs.inherit(hljs.APOS_STRING_MODE, {
     className: 'meta-string'
@@ -3002,8 +3125,8 @@ function xml(hljs) {
     contains: [
       {
         className: 'meta',
-        begin: '<![a-z]',
-        end: '>',
+        begin: /<![a-z]/,
+        end: />/,
         relevance: 10,
         contains: [
           XML_META_KEYWORDS,
@@ -3011,13 +3134,13 @@ function xml(hljs) {
           APOS_META_STRING_MODE,
           XML_META_PAR_KEYWORDS,
           {
-            begin: '\\[',
-            end: '\\]',
+            begin: /\[/,
+            end: /\]/,
             contains: [
               {
                 className: 'meta',
-                begin: '<![a-z]',
-                end: '>',
+                begin: /<![a-z]/,
+                end: />/,
                 contains: [
                   XML_META_KEYWORDS,
                   XML_META_PAR_KEYWORDS,
@@ -3030,15 +3153,15 @@ function xml(hljs) {
         ]
       },
       hljs.COMMENT(
-        '<!--',
-        '-->',
+        /<!--/,
+        /-->/,
         {
           relevance: 10
         }
       ),
       {
-        begin: '<!\\[CDATA\\[',
-        end: '\\]\\]>',
+        begin: /<!\[CDATA\[/,
+        end: /\]\]>/,
         relevance: 10
       },
       XML_ENTITIES,
@@ -3056,14 +3179,14 @@ function xml(hljs) {
         ending braket. The '$' is needed for the lexeme to be recognized
         by hljs.subMode() that tests lexemes outside the stream.
         */
-        begin: '<style(?=\\s|>)',
-        end: '>',
+        begin: /<style(?=\s|>)/,
+        end: />/,
         keywords: {
           name: 'style'
         },
         contains: [ TAG_INTERNALS ],
         starts: {
-          end: '</style>',
+          end: /<\/style>/,
           returnEnd: true,
           subLanguage: [
             'css',
@@ -3074,8 +3197,8 @@ function xml(hljs) {
       {
         className: 'tag',
         // See the comment in the <style tag about the lookahead pattern
-        begin: '<script(?=\\s|>)',
-        end: '>',
+        begin: /<script(?=\s|>)/,
+        end: />/,
         keywords: {
           name: 'script'
         },
@@ -3105,7 +3228,7 @@ function xml(hljs) {
             // <tag/>
             // <tag>
             // <tag ...
-            either(/\/>/, />/, /\s/)
+            either$1(/\/>/, />/, /\s/)
           ))
         ),
         end: /\/?>/,
@@ -3149,7 +3272,7 @@ core.registerLanguage('javascript', javascript_1);
 core.registerLanguage('xml', xml_1);
 
 
-class CodeBig extends LitElement {
+class CodeBlock extends LitElement {
 
     static get properties() {
         return {
@@ -3172,7 +3295,7 @@ class CodeBig extends LitElement {
     render() {
         return html`
             ${this._fileName}
-            <code class="hljs">${this.code}</code>
+            <code class="hljs" ?has-filename=${!!this.fileName}>${this.code}</code>
         `;
     }
 
@@ -3198,6 +3321,7 @@ class CodeBig extends LitElement {
                 display: block;
                 margin: 0;
                 padding: 7px 10px;
+                border-radius: 5px 5px 0 0;
                 background: #555;
                 color: #FFF;
                 font-weight: bold;
@@ -3209,10 +3333,15 @@ class CodeBig extends LitElement {
                 margin: 0;
                 padding: 10px;
                 width: 100%;
-                white-space: pre;
+                white-space: pre-wrap;
+                border-radius: 5px;
                 overflow-x: auto;
                 color: #ffffff;
                 background: #1c1b1b;
+            }
+
+            .hljs[has-filename] {
+                border-radius: 0 0 5px 5px;
             }
 
             .hljs-comment {
@@ -3285,156 +3414,179 @@ class CodeBig extends LitElement {
 
 }
 
-customElements.define('code-big', CodeBig);
 
-class CodeSmall extends LitElement {
+customElements.define('code-block', CodeBlock);
 
-    render() {
-        return html`<slot></slot>`;
+const observeState = superclass => class extends superclass {
+
+    constructor() {
+        super();
+        this._observers = [];
     }
 
-    static get styles() {
-        return css`
-            :host {
-                display: inline-block;
-                padding: 1px 3px;
-                margin: 1px;
-                background: #444;
-                color: white;
-                white-space: pre;
+    update(changedProperties) {
+        stateRecorder.start();
+        super.update(changedProperties);
+        this._initStateObservers();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._clearStateObservers();
+    }
+
+    _initStateObservers() {
+        this._clearStateObservers();
+        if (!this.isConnected) return;
+        this._addStateObservers(stateRecorder.finish());
+    }
+
+    _addStateObservers(stateVars) {
+        for (let [state, keys] of stateVars) {
+            const observer = () => this.requestUpdate();
+            this._observers.push([state, observer]);
+            state.addObserver(observer, keys);
+        }
+    }
+
+    _clearStateObservers() {
+        for (let [state, observer] of this._observers) {
+            state.removeObserver(observer);
+        }
+        this._observers = [];
+    }
+
+};
+
+
+class LitState {
+
+    constructor() {
+
+        this._stateVars = [];
+        this._observers = [];
+
+        return new Proxy(this, {
+
+            set: (obj, key, value) => {
+
+                if (this._isStateVar(key)) {
+                    const return_value = obj[key]._handleSet(value);
+                    if (return_value !== undefined) {
+                        return return_value;
+                    }
+                } else if (value instanceof BaseStateVar) {
+                    this._stateVars.push(key);
+                    value._recordRead = () => this._recordRead(key);
+                    value._notifyChange = () => this._notifyChange(key);
+                    obj[key] = value;
+                } else {
+                    obj[key] = value;
+                }
+
+                return true;
+
+            },
+
+            get: (obj, key) => {
+
+                if (obj._isStateVar(key)) {
+                    return obj[key]._handleGet();
+                }
+
+                return obj[key];
+
             }
-        `;
-    }
-
-}
-
-customElements.define('code-small', CodeSmall);
-
-class DemoShell extends LitElement {
-
-    _hashChangeCallback = null;
-
-    static get properties() {
-        return {
-            pages: {type: Array},
-            activePageHash: {type: String}
-        }
-    }
-
-    connectedCallback() {
-        super.connectedCallback();
-        this._addHashChangeCallback();
-        this._setInitialActiveHash();
-    }
-
-    _addHashChangeCallback() {
-        this._hashChangeCallback = window.addEventListener('hashchange', () => {
-            this.activePageHash = location.hash.substr(1);
-            window.scrollTo({ top: 0 });
-        });
-    }
-
-    _setInitialActiveHash() {
-
-        this.activePageHash = location.hash.substr(1);
-
-        if (!this.activePageHash) {
-            this.activePageHash = this.pages[0].hash;
-        }
-
-    }
-
-    render() {
-
-        return html`
-
-            <header>
-                <nav>${this.navButtons}</nav>
-            </header>
-
-            <article>
-                ${this.activePage.template}
-            </article>
-
-        `;
-
-    }
-
-    get navButtons() {
-
-        return this.pages.map(item => {
-
-            return html`
-                <button
-                    @click=${() => location.hash = item.hash}
-                    ?active=${this.activePage.hash == item.hash}
-                >
-                    ${item.title}
-                </button>
-            `;
 
         });
 
     }
 
-    get activePage() {
-
-        for (const item of this.pages) {
-            if (item.hash == this.activePageHash) {
-                return item;
-            }
-        }
-
-        // If `this.activePageHash` is not found, fall back to first page
-        return this.pages[0];
-
+    addObserver(observer, keys) {
+        this._observers.push({observer, keys});
     }
 
-    static get styles() {
+    removeObserver(observer) {
+        this._observers = this._observers.filter(observerObj => observerObj.observer !== observer);
+    }
 
-        return css`
+    _isStateVar(key) {
+        return this._stateVars.includes(key);
+    }
 
-            :host {
-                display: block;
-                margin: 0 auto;
-                padding: 15px;
-                max-width: 720px;
+    _recordRead(key) {
+        stateRecorder.recordRead(this, key);
+    }
+
+    _notifyChange(key) {
+        for (const observerObj of this._observers) {
+            if (!observerObj.keys || observerObj.keys.includes(key)) {
+                observerObj.observer(key);
             }
+        }    }
 
-            header {
-                margin-bottom: 15px;
-            }
+}
 
-            nav {
-                display: flex;
-            }
 
-            nav button {
-                margin: 0;
-                padding: 10px;
-                border: 1px #999 solid;
-                border-left-width: 0;
-                background: #C7C3BB;
-                color: #000;
-                cursor: pointer;
-            }
+class BaseStateVar {
+    _handleGet() {}
+    _handleSet(value) {}
+}
 
-            nav button:first-child {
-                border-left-width: 1px;
-            }
 
-            nav button:hover,
-            nav button[active] {
-                background: #DAD7D2;
-            }
+class StateVar extends BaseStateVar {
 
-        `;
+    constructor(initialValue) {
+        super();
+        this._value = initialValue;
+    }
 
+    _handleGet() {
+        this._recordRead();
+        return this._value;
+    }
+
+    _handleSet(value) {
+        if (this._value !== value) {
+            this._value = value;
+            this._notifyChange();
+        }
     }
 
 }
 
-customElements.define('demo-shell', DemoShell);
+
+function stateVar(defaultValue) {
+    return new StateVar(defaultValue);
+}
+
+
+class StateRecorder {
+
+    constructor() {
+        this._log = null;
+    }
+
+    start() {
+        this._log = new Map();
+    }
+
+    recordRead(stateObj, key) {
+        if (this._log === null) return;
+        const keys = this._log.get(stateObj) || [];
+        if (!keys.includes(key)) keys.push(key);
+        this._log.set(stateObj, keys);
+    }
+
+    finish() {
+        const stateVars = this._log;
+        this._log = null;
+        return stateVars;
+    }
+
+}
+
+const stateRecorder = new StateRecorder();
 
 function litStyle(myStyles) {
 
@@ -3456,52 +3608,9 @@ function litStyle(myStyles) {
 
     }
 
-    
-
 }
 
-const DemoComponent = litStyle(css`
-
-    :host {
-        display: block;
-        padding: 15px;
-        background: #DAD7D2;
-        border: 1px #666 solid;
-    }
-
-    h2 {
-        margin-top: 0;
-        font-size: 20px;
-        color: green;
-    }
-
-    h3 {
-        margin: 20px 0;
-        font-weight: 600;
-        font-size: 16px;
-    }
-
-    .status {
-        color: blue;
-    }
-
-    .value {
-        color: red;
-    }
-
-    .buttons {
-        display: flex;
-        flex-wrap: wrap;
-        margin: -5px 0 0 -5px;
-    }
-
-    .buttons > * {
-        margin: 5px 0 0 5px;
-    }
-
-`);
-
-const DemoPage = litStyle(css`
+const LitDocsStyle = litStyle(css`
 
     :host {
         display: block;
@@ -3511,21 +3620,48 @@ const DemoPage = litStyle(css`
         box-sizing: border-box;
     }
 
-    h1 {
-        padding: 10px 0;
-        margin: 20px 0 15px;
-        font-size: 25px;
-        border-bottom: 1px solid #AAA;
+    [hidden] {
+        display: none;
+    }
+
+    :first-child {
+        margin-top: 0;
+    }
+
+    :last-child {
+        margin-bottom: 0;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        margin-top: 24px;
+        margin-bottom: 16px;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    h1, h2 {
+        padding-bottom: .3em;
+        border-bottom: 1px solid #aaa;
     }
 
     h2 {
-        margin: 25px 0 10px;
-        font-size: 20px;
+        font-size: 1.5em;
     }
 
     h3 {
-        margin: 20px 0 5px;
-        font-size: 16px;
+        font-size: 1.25em;
+    }
+
+    h4 {
+        font-size: 1em;
+    }
+
+    h5 {
+        font-size: .875em;
+    }
+
+    h6 {
+        font-size: .85em;
     }
 
     p {
@@ -3534,7 +3670,17 @@ const DemoPage = litStyle(css`
     }
 
     a {
-        color: #000;
+        color: #384147;
+    }
+
+    code {
+        display: inline-block;
+        padding: 2px 6px;
+        margin: 1px;
+        background: #444;
+        border-radius: 5px;
+        color: white;
+        white-space: pre;
     }
 
     .demoComponents {
@@ -3550,15 +3696,869 @@ const DemoPage = litStyle(css`
 
 `);
 
-function currentTime() {
+class HamburgerIcon extends LitElement {
 
-    const date = new Date();
-    const hours = date.getHours() < 10 ? '0' + date.getHours() : date.getHours();
-    const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes();
-    const seconds = date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds();
+    render() {
+        return html`
+            <svg viewBox="0 0 70 40" width="100%" height="100%">
+              <rect width="70" height="5" rx="5"></rect>
+              <rect width="70" height="5" rx="5" y="18"></rect>
+              <rect width="70" height="5" rx="5" y="35"></rect>
+            </svg>
+        `;
+    }
 
-    return hours + ':' + minutes + ':' + seconds;
+    static get styles() {
+
+        return css`
+
+            :host {
+                display: block;
+            }
+
+            svg {
+                height: 100%;
+            }
+
+            rect {
+                fill: #7b8184;
+            }
+
+        `;
+
+    }
 
 }
 
-export { DemoComponent, DemoPage, currentTime };
+
+customElements.define('hamburger-icon', HamburgerIcon);
+
+class CrossIcon extends LitElement {
+
+    render() {
+        return html`
+            <svg viewBox="0 0 100 100" width="100%" height="100%">
+                <line x1="0" y1="0" x2="100" y2="100" />
+                <line x1="100" y1="0" x2="0" y2="100" />
+            </svg>
+        `;
+    }
+
+    static get styles() {
+
+        return css`
+
+            :host {
+                display: block;
+            }
+
+            svg {
+                height: 100%;
+            }
+
+            line {
+                stroke: #7b8184;
+                stroke-width: 5px;
+            }
+
+        `;
+
+    }
+
+}
+
+
+customElements.define('cross-icon', CrossIcon);
+
+class LitDocsUiState extends LitState {
+
+    constructor() {
+        super();
+        this.pages = stateVar();
+        this.path = stateVar();
+        this.page = stateVar();
+        this.showMenu = stateVar();
+    }
+
+    /*static get stateVars() {
+        return {
+            pages: {},
+            path: {},
+            page: {},
+            showMenu: {}
+        }
+    }*/
+
+    setPath(path) {
+        if (path[0] === '/') path = path.substr(1);
+        this.path = path || '/';
+        this._initPageByPath();
+    }
+
+    navToPath(path, addToHistory = true) {
+
+        if (!path) {
+            path = '/';
+        }
+
+        if (
+            path.substr(0, 7) === 'http://'
+            || path.substr(0, 8) === 'https://'
+        ) {
+            path = path.split('/').slice(3).join('/');
+        }
+
+        if (path === this.path) {
+            return;
+        }
+
+        this.setPath(path);
+
+        if (addToHistory) {
+            history.pushState({}, this.page.title, this.path);
+        }
+
+        this.showMenu = false;
+        window.scrollTo(0, 0);
+
+    }
+
+    handlePageLinkClick(event) {
+
+        if (event.ctrlKey || event.shiftKey) {
+            // Ctrl/shift click opens a `<a>` link in new tab/window, so when
+            // one of these keys are pressed, don't override normal behavior.
+            return
+        }
+
+        event.preventDefault();
+
+        let target = event.target;
+        let href = event.target.href;
+
+        while (!href) {
+            target = target.parentNode;
+            href = target.href;
+        }
+
+        if (href) {
+            this.navToPath(href);
+        }
+
+    }
+
+    _initPageByPath() {
+
+        let path = this.path;
+
+        if (path === '/' || path === '') {
+            this.page = this.pages[0];
+            return;
+        }
+
+        if (path[0] === '/') {
+            path = path.substr(1);
+        }
+
+        this._setPageByPath(path, this.pages);
+
+        if (!this.page) {
+            this.page = this.pages[0];
+        }
+
+    }
+
+    _setPageByPath(path, pages) {
+
+        const firstPathPart = path.split('/')[0];
+
+        if (!firstPathPart) {
+            return;
+        }
+
+        for (const page of pages) {
+
+            if (page.path === firstPathPart) {
+
+                this.page = page;
+
+                if (page.submenu) {
+                    const pathRemainder = path.split('/').slice(1).join('/');
+                    this._setPageByPath(pathRemainder, page.submenu);
+                }
+
+                return;
+
+            }
+
+        }
+
+    }
+
+}
+
+const litDocsUiState = new LitDocsUiState();
+
+
+class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
+
+    static get properties() {
+        return {
+            docsTitle: {type: String},
+            pages: {type: Array}
+        }
+    }
+
+    constructor() {
+        super();
+        this.docsTitle = '';
+        this.pages = [];
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._initState();
+        this._fixMenuWidthOnPageWidthChange();
+        this._initPopStateListener();
+    }
+
+    firstUpdated() {
+        super.firstUpdated();
+        this._fixMenuWidth();
+    }
+
+    _initState() {
+        litDocsUiState.pages = this.pages;
+        litDocsUiState.setPath(window.location.pathname);
+    }
+
+    _fixMenuWidth() {
+        this.shadowRoot.getElementById('menuSidebarContent').style.maxWidth = (() => {
+            if (window.innerWidth > 600) {
+                return this.shadowRoot.getElementById('menu').clientWidth + 'px';
+            } else {
+                return 'none';
+            }
+        })();
+    }
+
+    _resetMenuWidth() {
+        this.shadowRoot.getElementById('menuSidebarContent').style.maxWidth = 'none';
+    }
+
+    _fixMenuWidthOnPageWidthChange() {
+        window.addEventListener('resize', () => this._fixMenuWidth());
+    }
+
+    _initPopStateListener() {
+        window.addEventListener('popstate', event => {
+            litDocsUiState.navToPath(window.location.pathname, false);
+        });
+    }
+
+    render() {
+
+        return html`
+
+            <div id="layout" ?show-menu=${litDocsUiState.showMenu}>
+
+                <div id="menu">
+
+                    <div id="menuSidebarContent">
+                        <header>
+                            <a href="/" @click=${event => litDocsUiState.handlePageLinkClick(event)}>${this.docsTitle}</a>
+                        </header>
+                        <nav class="mainMenu menu">${this.navTree(this.pages)}</nav>
+                    </div>
+
+                    <div id="hamburgerMenu" @click=${this.handleHamburgerMenuClick}>
+                        <hamburger-icon ?hidden=${litDocsUiState.showMenu}></hamburger-icon>
+                        <cross-icon ?hidden=${!litDocsUiState.showMenu}></cross-icon>
+                    </div>
+
+                </div>
+
+                <article>
+                    <div id="articleContent">
+                        ${litDocsUiState.page.template}
+                    </div>
+                </article>
+
+            </div>
+
+        `;
+
+    }
+
+    navTree(pages, level = 0, pageNoPrefix = '', pathPrefix = '') {
+
+        if (!pages) {
+            return;
+        }
+
+        let pageNo = 0;
+
+        return pages.map(page => {
+
+            let path = pathPrefix + page.path;
+            if (path[-1] !== '/') path += '/';
+
+            pageNo++;
+
+            const navContent = html`
+                <span class="menuItemNo">${pageNoPrefix + pageNo}</span>
+                <span>${page.title}</span>
+            `;
+
+            const getMenuItem = () => {
+
+                if (page.template) {
+
+                    return html`
+                        <a
+                            class="menuItem menuItemLink"
+                            nav-level=${level}
+                            href=${path}
+                            @click=${event => litDocsUiState.handlePageLinkClick(event)}
+                            ?active=${page === litDocsUiState.page}
+                        >
+                            ${navContent}
+                        </a>
+                    `;
+
+                } else {
+
+                    return html`
+                        <span
+                            class="menuItem menuItemCategory"
+                            nav-level=${level}
+                        >
+                            ${navContent}
+                        </span>
+                    `;
+                }
+
+            };
+
+            const getSubMenu = () => {
+                if (page.submenu) {
+                    return html`
+                        <div class="menuItemSubmenu menu">
+                            ${this.navTree(page.submenu, level + 1, pageNoPrefix + pageNo + '.', path)}
+                        </div>
+                    `;
+                }
+            };
+
+            return html`
+                ${getMenuItem()}
+                ${getSubMenu()}
+            `;
+
+        });
+
+    }
+
+    handleTitleClick(event) {
+        this.handleMenuItemClick(event, this.pages[0], '/');
+    }
+
+    handleMenuItemClick(event, page, path) {
+
+        if (event.ctrlKey || event.shiftKey) {
+            // Ctrl/shift click opens a `<a>` link in new tab/window, so when
+            // one of these keys are pressed, don't override normal behavior.
+            return
+        }
+
+        event.preventDefault();
+        litDocsUiState.navToPath(path);
+
+    }
+
+    handleHamburgerMenuClick() {
+
+        if (litDocsUiState.showMenu) {
+            litDocsUiState.showMenu = false;
+        } else {
+            litDocsUiState.showMenu = true;
+        }
+
+        this._resetMenuWidth();
+
+    }
+
+    static get styles() {
+
+        return css`
+
+            * {
+                box-sizing: border-box;
+                --left-sidebar-width: 250px;
+                --header-height: 45px;
+            }
+
+            #layout {
+                display: flex;
+                margin: 0 auto;
+                min-height: 100vh;
+            }
+
+            #menuSidebarContent {
+                width: 100%;
+                max-width: var(--left-sidebar-width);
+            }
+
+            #menuSidebarContent header {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: var(--header-height);
+                background: #bcb9b2;
+                border-bottom: 1px #999 solid;
+            }
+
+            #menuSidebarContent header a {
+                display: inline-block;
+                padding: 5px;
+                font-weight: 600;
+                text-decoration: none;
+                font-size: 20px;
+            }
+
+            .menu {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .menuItem {
+                display: inline-flex;
+                align-items: center;
+                margin: 0;
+                padding: 8px;
+                border-bottom: 1px solid #999;
+                xborder-width: 1px 0;
+                text-align: left;
+                text-decoration: none;
+            }
+
+            .menuItemCategory {
+                font-weight: bold;
+                color: #384147;
+                xmargin-top: 5px;
+                xpadding-top: 15px;
+                xpadding-bottom: 15px;
+            }
+
+            .menuItemSubmenu {
+                xmargin: 5px 0;
+            }
+
+            .menuItemLink {
+                xbackground: #C7C3BB;
+            }
+
+            .menuItemLink {
+                cursor: pointer;
+            }
+
+            .menuItem[active],
+            .menuItemLink:hover {
+                background: #DAD7D2;
+                border-color: #999;
+            }
+
+            .menuItem[nav-level="1"] {
+                padding-left: 25px;
+            }
+
+            .menuItem[nav-level="2"] {
+                padding-left: 40px;
+            }
+
+            .menuItem[nav-level="3"] {
+                padding-left: 55px;
+            }
+
+            .menuItemNo {
+                font-size: 11px;
+                opacity: 0.6;
+                margin: 1px 7px 0 0;
+            }
+
+            article {
+                flex-grow: 1;
+                overflow-x: auto;
+                max-width: 100%;
+            }
+
+            #articleContent {
+                padding: 20px;
+                max-width: 720px;
+                width: 100%;
+            }
+
+            #hamburgerMenu {
+                display: none;
+            }
+
+            @media screen and (min-width: 601px) {
+
+                #menu {
+                    position: relative;
+                    width: 100%;
+                    max-width: var(--left-sidebar-width);
+                    background: #bcb9b2;
+                    border-right: 1px #999 solid;
+                }
+
+                #sideBarOpener {
+                    display: none;
+                }
+
+            }
+
+            @media screen and (max-width: 600px) {
+
+                #menuSidebarContent {
+                    position: fixed;
+                }
+
+                .mainMenu {
+                    overflow: auto;
+                    max-height: calc(100vh - var(--header-height));
+                }
+
+                #layout[show-menu] #menu {
+                    display: block;
+                    position: absolute;
+                }
+
+                article {
+                    padding-top: var(--header-height);
+                }
+
+                #layout[show-menu] article {
+                    display: none;
+                }
+
+                #layout:not([show-menu]) #menuSidebarContent nav {
+                    display: none;
+                }
+
+                #hamburgerMenu {
+                    position: fixed;
+                    display: block;
+                    top: 2px;
+                    right: 0;
+                    padding: 10px;
+                    cursor: pointer;
+                }
+
+                #hamburgerMenu hamburger-icon {
+                    height: 20px;
+                }
+
+                #hamburgerMenu cross-icon {
+                    height: 20px;
+                }
+
+                #hamburgerMenu .stripe {
+                    width: 100%;
+                    height: 4px;
+                    margin: 5px 0;
+                    background: grey;
+                }
+
+            }
+
+        `;
+
+    }
+
+}
+
+
+customElements.define('lit-docs-ui', LitDocsUI);
+
+class LitDocsLink extends LitDocsStyle(LitElement) {
+
+    static get properties() {
+        return {
+            href: {type: String}
+        };
+    }
+
+    constructor() {
+        super();
+        this.href = '';
+    }
+
+    render() {
+        // Don't leave no spaces in the template, because the host is an inline
+        // element.
+        return html`<a href=${this.href}
+            @click=${event => litDocsUiState.handlePageLinkClick(event)}
+        ><slot></slot></a>`;
+    }
+
+    static get styles() {
+        return css`
+            :host {
+                display: inline;
+            }
+        `;
+    }
+
+}
+
+
+customElements.define('lit-docs-link', LitDocsLink);
+
+class ShowcaseBox extends LitElement {
+
+    render() {
+        return html`<slot></slot>`;
+    }
+
+    static get styles() {
+
+        return css`
+            :host {
+                display: block;
+                padding: 15px;
+                background: #DAD7D2;
+                border: 1px #666 solid;
+            }
+        `;
+
+    }
+
+}
+
+
+customElements.define('showcase-box', ShowcaseBox);
+
+// Global container of all the anchors on the page. This is global so that the
+// `goToAnchor()` function can be used from any component.
+let ANCHORS = [];
+
+function scrollCorrection() {
+    if (window.innerWidth > 600) {
+        return 10;
+    } else {
+        return 50;
+    }
+}
+
+function scrollToAnchorExec(anchorData) {
+    const newScrollY = window.scrollY + anchorData.element.getBoundingClientRect().top - scrollCorrection();
+    window.scrollTo(0, newScrollY);
+}
+
+function getAnchorData(anchorName, returnList = false) {
+
+    const conditionFunc = anchor => {
+        return anchor.anchorName == anchorName;
+    };
+
+    if (returnList) {
+        return ANCHORS.filter(conditionFunc);
+    } else {
+        return ANCHORS.find(conditionFunc);
+    }
+
+}
+
+function scrollToAnchor(anchorName) {
+    const anchorData = getAnchorData(anchorName);
+    if (!anchorData) return;
+    scrollToAnchorExec(anchorData);
+}
+
+function goToAnchor(anchorName) {
+
+    if (!anchorName) return;
+
+    scrollToAnchor(anchorName);
+
+    // Do it another time when the full document has loaded
+    window.addEventListener('load', event => {
+        scrollToAnchor(anchorName);
+    });
+
+}
+
+
+const litDocsAnchorsStyles = litStyle(css`
+
+    h1 .headingAnchor:not([active]),
+    h2 .headingAnchor:not([active]),
+    h3 .headingAnchor:not([active]),
+    h4 .headingAnchor:not([active]),
+    h5 .headingAnchor:not([active]),
+    h6 .headingAnchor:not([active]) {
+        display: none;
+    }
+
+    h1:hover .headingAnchor,
+    h2:hover .headingAnchor,
+    h3:hover .headingAnchor,
+    h4:hover .headingAnchor,
+    h5:hover .headingAnchor,
+    h6:hover .headingAnchor {
+        display: inline-block;
+    }
+
+    .headingAnchor {
+        display: inline-block;
+        fill: rgb(115, 121, 126);
+        text-decoration: none;
+        height: 15px;
+    }
+
+    .headingAnchor svg {
+        height: 100%;
+    }
+
+`);
+
+
+const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(superclass) {
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._addHashChangeListener();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._removeHashChangeListener();
+        this._removeAnchors();
+    }
+
+    firstUpdated() {
+        super.firstUpdated();
+        this._addAnchors();
+        this._renderAnchors();
+        this._loadInitialAnchor();
+    }
+
+    _addHashChangeListener() {
+        this.hashChangeCallback = event => {
+            goToAnchor(event.newURL.split('#')[1]);
+            this._renderAnchors();
+        };
+        window.addEventListener('hashchange', this.hashChangeCallback);
+    }
+
+    _removeHashChangeListener() {
+        window.removeEventListener('hashchange', this.hashChangeCallback);
+    }
+
+    _loadInitialAnchor() {
+        goToAnchor(window.location.hash.substr(1));
+    }
+
+    _addAnchors() {
+
+        this._addedAnchors = [];
+        const tagNames = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+
+        for (const tagName of tagNames) {
+
+            const elements = this.shadowRoot.querySelectorAll(tagName);
+
+            for (const element of elements) {
+                this._addAnchor(element);
+            }
+
+        }
+
+    }
+
+    _removeAnchors() {
+        for (let addedAnchor of this._addedAnchors) {
+            const anchorIndex = ANCHORS.findIndex(anchor => {
+                return anchor.anchorName === addedAnchor.anchorName;
+            });
+            ANCHORS.splice(anchorIndex, 1);
+        }
+    }
+
+    _addAnchor(element) {
+
+        const elementText = element.textContent;
+        const anchorName = this._getAnchorName(elementText);
+
+        const anchorData = {
+            anchorName,
+            element,
+            elementText
+        };
+
+        ANCHORS.push(anchorData);
+
+        this._addedAnchors.push(anchorData);
+
+    }
+
+    _renderAnchors() {
+        for (let anchor of ANCHORS) {
+            this._renderAnchor(anchor);
+        }
+    }
+
+    _renderAnchor(anchor) {
+
+        const active = window.location.hash.substr(1) === anchor.anchorName;
+
+        const template = html`
+            <span>${anchor.elementText}</span>
+            <a
+                class="headingAnchor"
+                href=${window.location.pathname + '#' + anchor.anchorName}
+                ?active=${active}
+                @click=${() => goToAnchor(anchor.anchorName)}
+            >
+                ${this._anchorSvg}
+            </a>
+        `;
+
+        render(template, anchor.element);
+        anchor.element.id = anchor.anchorName;
+
+    }
+
+    _getAnchorName(elementText) {
+
+        const baseAnchorName = elementText.replace(/ /g, '-').replace(/[^\w-_\.]/gi, '').toLowerCase();
+        let anchorName = baseAnchorName;
+        let alreadyExistingAnchor = getAnchorData(anchorName);
+        let counter = 1;
+
+        while (alreadyExistingAnchor) {
+            counter++;
+            anchorName = baseAnchorName + '-' + counter;
+            alreadyExistingAnchor = getAnchorData(anchorName);
+        }
+
+        return anchorName;
+
+    }
+
+    get _anchorSvg() {
+
+        return html`
+            <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <path d="M326.612 185.391c59.747 59.809 58.927 155.698.36 214.59-.11.12-.24.25-.36.37l-67.2 67.2c-59.27 59.27-155.699 59.262-214.96 0-59.27-59.26-59.27-155.7 0-214.96l37.106-37.106c9.84-9.84 26.786-3.3 27.294 10.606.648 17.722 3.826 35.527 9.69 52.721 1.986 5.822.567 12.262-3.783 16.612l-13.087 13.087c-28.026 28.026-28.905 73.66-1.155 101.96 28.024 28.579 74.086 28.749 102.325.51l67.2-67.19c28.191-28.191 28.073-73.757 0-101.83-3.701-3.694-7.429-6.564-10.341-8.569a16.037 16.037 0 0 1-6.947-12.606c-.396-10.567 3.348-21.456 11.698-29.806l21.054-21.055c5.521-5.521 14.182-6.199 20.584-1.731a152.482 152.482 0 0 1 20.522 17.197zM467.547 44.449c-59.261-59.262-155.69-59.27-214.96 0l-67.2 67.2c-.12.12-.25.25-.36.37-58.566 58.892-59.387 154.781.36 214.59a152.454 152.454 0 0 0 20.521 17.196c6.402 4.468 15.064 3.789 20.584-1.731l21.054-21.055c8.35-8.35 12.094-19.239 11.698-29.806a16.037 16.037 0 0 0-6.947-12.606c-2.912-2.005-6.64-4.875-10.341-8.569-28.073-28.073-28.191-73.639 0-101.83l67.2-67.19c28.239-28.239 74.3-28.069 102.325.51 27.75 28.3 26.872 73.934-1.155 101.96l-13.087 13.087c-4.35 4.35-5.769 10.79-3.783 16.612 5.864 17.194 9.042 34.999 9.69 52.721.509 13.906 17.454 20.446 27.294 10.606l37.106-37.106c59.271-59.259 59.271-155.699.001-214.959z"></path>
+            </svg>
+        `;
+
+    }
+
+};
+
+const LitDocsContent = superclass => class extends LitDocsAnchors(LitDocsStyle(superclass)) {};
+
+export { LitDocsAnchors, LitDocsContent, LitDocsStyle, goToAnchor, litDocsUiState };

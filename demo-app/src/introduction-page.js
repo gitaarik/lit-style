@@ -1,10 +1,10 @@
 import { customElement, LitElement, html } from 'lit-element';
-import { DemoPage } from 'lit-element-demo-app-helpers';
-import 'lit-element-demo-app-helpers';
+import { LitDocsContent } from 'lit-docs';
+import 'lit-docs';
 
 
 @customElement('introduction-page')
-export class IntroductionPage extends DemoPage(LitElement) {
+export class IntroductionPage extends LitDocsContent(LitElement) {
 
     render() {
 
@@ -21,16 +21,19 @@ export class IntroductionPage extends DemoPage(LitElement) {
             <h2>Installation</h2>
 
             <p>
-                <code-big .code=${'npm install lit-element-style'}></code-big>
+                <code-block .code=${'npm install lit-element-style'}></code-block>
             </p>
 
             <h2>Usage</h2>
 
             <p>
-                <code-big .code=${this.usageCode}></code-big>
+                <code-block .code=${this.usageCode}></code-block>
             </p>
 
-            <p>See <a href="#basic-usage">Basic usage</a> for more info.</p>
+            <p>
+                See <lit-docs-link href="basic-usage/">Basic usage</lit-docs-link>
+                for more info.
+            </p>
 
         `;
 

@@ -31,7 +31,7 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.it
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 import { customElement, LitElement, html } from '../web_modules/lit-element.js';
-import '../web_modules/lit-element-demo-app-helpers.js';
+import '../web_modules/lit-docs.js';
 import './basic-usage/index.js';
 import './style-precedence/index.js';
 import './introduction-page.js';
@@ -51,23 +51,23 @@ export let LitStyleDemoApp = _decorate([customElement('lit-style-demo-app')], fu
       kind: "method",
       key: "render",
       value: function render() {
-        return html`<demo-shell .pages=${this.pages}></demo-shell>`;
+        return html`<lit-docs-ui docsTitle="LitStyle" .pages=${this.pages}></lit-docs-ui>`;
       }
     }, {
       kind: "get",
       key: "pages",
       value: function pages() {
         return [{
-          hash: 'introduction-page',
           title: 'Introduction',
+          path: 'introduction-page',
           template: html`<introduction-page></introduction-page>`
         }, {
-          hash: 'basic-usage',
           title: 'Basic usage',
+          path: 'basic-usage',
           template: html`<basic-usage></basic-usage>`
         }, {
-          hash: 'style-precedence',
           title: 'Style precedence',
+          path: 'style-precedence',
           template: html`<style-precedence></style-precedence>`
         }];
       }

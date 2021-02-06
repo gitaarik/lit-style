@@ -1,11 +1,11 @@
 import { customElement, LitElement, html } from 'lit-element';
-import { DemoPage } from 'lit-element-demo-app-helpers';
-import 'lit-element-demo-app-helpers';
+import { LitDocsContent } from 'lit-docs';
+import 'lit-docs';
 import './basic-demo.js';
 
 
 @customElement('basic-usage')
-export class BasicUsage extends DemoPage(LitElement) {
+export class BasicUsage extends LitDocsContent(LitElement) {
 
     render() {
 
@@ -14,16 +14,16 @@ export class BasicUsage extends DemoPage(LitElement) {
             <h1>Basic Usage</h1>
 
             <p>
-                The <code-small>litStyle()</code-small> function takes some css
+                The <code>litStyle()</code> function takes some css
                 and returns a mixin that you can use on your
-                <code-small>LitElement</code-small> components. Then they will
+                <code>LitElement</code> components. Then they will
                 include those styles.
             </p>
 
             <h2>Example:</h2>
 
             <p>
-                <code-big .code=${this.demoComponentCode}></code-big>
+                <code-block .code=${this.litStyleCode}></code-block>
             </p>
 
             <h2>Output:</h2>
@@ -36,7 +36,7 @@ export class BasicUsage extends DemoPage(LitElement) {
 
     }
 
-    get demoComponentCode() {
+    get litStyleCode() {
 
         return `import { customElement, LitElement, html, css } from 'lit-element';
 import { litStyle } from 'lit-element-style';

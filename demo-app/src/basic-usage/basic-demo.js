@@ -1,5 +1,5 @@
 import { customElement, LitElement, html, css } from 'lit-element';
-import { DemoComponent } from 'lit-element-demo-app-helpers';
+import 'lit-docs';
 import { litStyle } from '@app/lit-style.js';
 
 
@@ -25,15 +25,17 @@ const myStyles = litStyle(css`
 
 
 @customElement('basic-demo')
-export class BasicDemo extends DemoComponent(myStyles(LitElement)) {
+export class BasicDemo extends myStyles(LitElement) {
 
     render() {
 
         return html`
-            <h1>This is a &lt;h1&gt; tag</h1>
-            <h2>This is a &lt;h2&gt; tag</h2>
-            <h3>This is a &lt;h3&gt; tag</h3>
-            <p>This is a &lt;p&gt; tag</p>
+            <showcase-box>
+                <h1>This is a &lt;h1&gt; tag</h1>
+                <h2>This is a &lt;h2&gt; tag</h2>
+                <h3>This is a &lt;h3&gt; tag</h3>
+                <p>This is a &lt;p&gt; tag</p>
+            </showcase-box>
         `;
 
     }

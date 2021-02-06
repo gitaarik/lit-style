@@ -1,11 +1,11 @@
 import { customElement, LitElement, html } from 'lit-element';
-import { DemoPage } from 'lit-element-demo-app-helpers';
-import 'lit-element-demo-app-helpers';
+import { LitDocsContent } from 'lit-docs';
+import 'lit-docs';
 import './precedence-demo.js';
 
 
 @customElement('style-precedence')
-export class StylePrecedence extends DemoPage(LitElement) {
+export class StylePrecedence extends LitDocsContent(LitElement) {
 
     render() {
 
@@ -17,14 +17,14 @@ export class StylePrecedence extends DemoPage(LitElement) {
                 The inner most (mixin) class gets precedence. So if your
                 component defines styles itself, they get precedence over any
                 mixin that you created with
-                <code-small>litStyle()</code-small>. And if you use multiple
+                <code>litStyle()</code>. And if you use multiple
                 mixins, the more inner mixins get precedence.
             </p>
 
             <h2>Example:</h2>
 
             <p>
-                <code-big .code=${this.demoComponentCode}></code-big>
+                <code-block .code=${this.demoComponentCode}></code-block>
             </p>
 
             <h2>Output:</h2>

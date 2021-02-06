@@ -31,11 +31,11 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.it
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 import { customElement, LitElement, html } from '../../web_modules/lit-element.js';
-import { DemoPage } from '../../web_modules/lit-element-demo-app-helpers.js';
-import '../../web_modules/lit-element-demo-app-helpers.js';
+import { LitDocsContent } from '../../web_modules/lit-docs.js';
+import '../../web_modules/lit-docs.js';
 import './precedence-demo.js';
-export let StylePrecedence = _decorate([customElement('style-precedence')], function (_initialize, _DemoPage) {
-  class StylePrecedence extends _DemoPage {
+export let StylePrecedence = _decorate([customElement('style-precedence')], function (_initialize, _LitDocsContent) {
+  class StylePrecedence extends _LitDocsContent {
     constructor(...args) {
       super(...args);
 
@@ -58,14 +58,14 @@ export let StylePrecedence = _decorate([customElement('style-precedence')], func
                 The inner most (mixin) class gets precedence. So if your
                 component defines styles itself, they get precedence over any
                 mixin that you created with
-                <code-small>litStyle()</code-small>. And if you use multiple
+                <code>litStyle()</code>. And if you use multiple
                 mixins, the more inner mixins get precedence.
             </p>
 
             <h2>Example:</h2>
 
             <p>
-                <code-big .code=${this.demoComponentCode}></code-big>
+                <code-block .code=${this.demoComponentCode}></code-block>
             </p>
 
             <h2>Output:</h2>
@@ -144,4 +144,4 @@ export class PrecedenceDemo extends myStyles(moreImportantStyles(LitElement)) {
       }
     }]
   };
-}, DemoPage(LitElement));
+}, LitDocsContent(LitElement));
