@@ -3775,9 +3775,9 @@ class LitDocsUiState extends LitState {
     constructor() {
         super();
         this.pages = stateVar();
-        this.path = stateVar();
         this.page = stateVar();
         this.showMenu = stateVar();
+        this.useHash = stateVar(true);
     }
 
     /*static get stateVars() {
@@ -3789,33 +3789,60 @@ class LitDocsUiState extends LitState {
         }
     }*/
 
-    setPath(path) {
-        if (path[0] === '/') path = path.substr(1);
-        this.path = path || '/';
-        this._initPageByPath();
+    initPageByPath(path) {
+
+        if (!path || path === '/' || path === '' || path === '#') {
+            this.page = this.pages[0];
+            return;
+        }
+
+        path = path.slice(); // make a copy
+
+        if (path[0] === '/') {
+            path = path.substr(1);
+        }
+
+        if (this.useHash && path.split('#').length > 1) {
+            path = path.split('#')[1];
+        }
+
+        this._setPageByPath(path, this.pages);
+
+        if (!this.page) {
+            this.page = this.pages[0];
+        }
+
     }
 
     navToPath(path, addToHistory = true) {
 
-        if (!path) {
-            path = '/';
+        path = path.slice(); // make a copy
+
+        if (this.useHash) {
+            path = path.split('#')[1] || '';
+        } else {
+
+            if (!path) {
+                path = '/';
+            }
+
+            if (
+                path.substr(0, 7) === 'http://'
+                || path.substr(0, 8) === 'https://'
+            ) {
+                path = path.split('/').slice(3).join('/');
+            }
+
         }
 
-        if (
-            path.substr(0, 7) === 'http://'
-            || path.substr(0, 8) === 'https://'
-        ) {
-            path = path.split('/').slice(3).join('/');
-        }
-
-        if (path === this.path) {
-            return;
-        }
-
-        this.setPath(path);
+        this.initPageByPath(path);
 
         if (addToHistory) {
-            history.pushState({}, this.page.title, this.path);
+            history.pushState(
+                {},
+                this.page.title,
+                (this.useHash ? window.location.pathname + '#' : '') + path
+            );
         }
 
         this.showMenu = false;
@@ -3847,25 +3874,12 @@ class LitDocsUiState extends LitState {
 
     }
 
-    _initPageByPath() {
-
-        let path = this.path;
-
-        if (path === '/' || path === '') {
-            this.page = this.pages[0];
-            return;
+    handlePopState() {
+        if (this.useHash) {
+            this.navToPath(window.location.hash, false);
+        } else {
+            this.navToPath(window.location.pathname, false);
         }
-
-        if (path[0] === '/') {
-            path = path.substr(1);
-        }
-
-        this._setPageByPath(path, this.pages);
-
-        if (!this.page) {
-            this.page = this.pages[0];
-        }
-
     }
 
     _setPageByPath(path, pages) {
@@ -3905,13 +3919,15 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
     static get properties() {
         return {
             docsTitle: {type: String},
-            pages: {type: Array}
+            pages: {type: Array},
+            useHash: {type: Boolean}
         }
     }
 
     constructor() {
         super();
         this.docsTitle = '';
+        this.useHash = true;
         this.pages = [];
     }
 
@@ -3928,8 +3944,9 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
     }
 
     _initState() {
+        litDocsUiState.useHash = this.useHash;
         litDocsUiState.pages = this.pages;
-        litDocsUiState.setPath(window.location.pathname);
+        litDocsUiState.initPageByPath(window.location.pathname + window.location.hash);
     }
 
     _fixMenuWidth() {
@@ -3952,7 +3969,7 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
 
     _initPopStateListener() {
         window.addEventListener('popstate', event => {
-            litDocsUiState.navToPath(window.location.pathname, false);
+            litDocsUiState.handlePopState();
         });
     }
 
@@ -4014,11 +4031,21 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
 
                 if (page.template) {
 
+                    const href = (() => {
+
+                        if (litDocsUiState.useHash) {
+                            return window.location.pathname + '#' + path;
+                        }
+
+                        return path;
+
+                    })();
+
                     return html`
                         <a
                             class="menuItem menuItemLink"
                             nav-level=${level}
-                            href=${path}
+                            href=${href}
                             @click=${event => litDocsUiState.handlePageLinkClick(event)}
                             ?active=${page === litDocsUiState.page}
                         >
@@ -4056,23 +4083,6 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
             `;
 
         });
-
-    }
-
-    handleTitleClick(event) {
-        this.handleMenuItemClick(event, this.pages[0], '/');
-    }
-
-    handleMenuItemClick(event, page, path) {
-
-        if (event.ctrlKey || event.shiftKey) {
-            // Ctrl/shift click opens a `<a>` link in new tab/window, so when
-            // one of these keys are pressed, don't override normal behavior.
-            return
-        }
-
-        event.preventDefault();
-        litDocsUiState.navToPath(path);
 
     }
 
@@ -4297,9 +4307,19 @@ class LitDocsLink extends LitDocsStyle(LitElement) {
     render() {
         // Don't leave no spaces in the template, because the host is an inline
         // element.
-        return html`<a href=${this.href}
+        return html`<a href=${this._href}
             @click=${event => litDocsUiState.handlePageLinkClick(event)}
         ><slot></slot></a>`;
+    }
+
+    get _href() {
+
+        if (litDocsUiState.useHash) {
+            return '#' + this.href;
+        }
+
+        return this.href;
+
     }
 
     static get styles() {
@@ -4446,7 +4466,7 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
 
     _addHashChangeListener() {
         this.hashChangeCallback = event => {
-            goToAnchor(event.newURL.split('#')[1]);
+            goToAnchor(event.newURL.split('#').slice(-1)[0]);
             this._renderAnchors();
         };
         window.addEventListener('hashchange', this.hashChangeCallback);
@@ -4457,7 +4477,9 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
     }
 
     _loadInitialAnchor() {
-        goToAnchor(window.location.hash.substr(1));
+        const hashes = window.location.hash.split('#');
+        const lastHash = hashes.pop();
+        goToAnchor(lastHash);
     }
 
     _addAnchors() {
@@ -4517,7 +4539,7 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
             <span>${anchor.elementText}</span>
             <a
                 class="headingAnchor"
-                href=${window.location.pathname + '#' + anchor.anchorName}
+                href=${window.location.pathname + this._baseHash + '#' + anchor.anchorName}
                 ?active=${active}
                 @click=${() => goToAnchor(anchor.anchorName)}
             >
@@ -4527,6 +4549,23 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
 
         render(template, anchor.element);
         anchor.element.id = anchor.anchorName;
+
+    }
+
+    get _baseHash() {
+
+        if (!litDocsUiState.useHash || window.location.hash[0] !== '#') {
+            return '';
+        }
+
+        const hashValue = window.location.hash.substr(1);
+        const hashes = hashValue.split('#');
+
+        if (hashes.length > 1) {
+            return '#' + hashes.slice(0, -1).join('#');
+        } else {
+            return '#' + hashes[0];
+        }
 
     }
 

@@ -5,8 +5,8 @@ import './style-precedence/index';
 import './introduction-page';
 
 
-@customElement('lit-style-demo-app')
-export class LitStyleDemoApp extends LitElement {
+@customElement('lit-style-docs')
+export class LitStyleDocs extends LitElement {
 
     render() {
         return html`<lit-docs-ui docsTitle="LitStyle" .pages=${this.pages}></lit-docs-ui>`;

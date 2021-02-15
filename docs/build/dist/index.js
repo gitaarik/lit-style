@@ -35,8 +35,8 @@ import '../web_modules/lit-docs.js';
 import './basic-usage/index.js';
 import './style-precedence/index.js';
 import './introduction-page.js';
-export let LitStyleDemoApp = _decorate([customElement('lit-style-demo-app')], function (_initialize, _LitElement) {
-  class LitStyleDemoApp extends _LitElement {
+export let LitStyleDocs = _decorate([customElement('lit-style-docs')], function (_initialize, _LitElement) {
+  class LitStyleDocs extends _LitElement {
     constructor(...args) {
       super(...args);
 
@@ -46,7 +46,7 @@ export let LitStyleDemoApp = _decorate([customElement('lit-style-demo-app')], fu
   }
 
   return {
-    F: LitStyleDemoApp,
+    F: LitStyleDocs,
     d: [{
       kind: "method",
       key: "render",

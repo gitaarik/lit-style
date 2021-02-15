@@ -2,7 +2,7 @@
 module.exports = {
   mount: {
     public: '/',
-    src: '/_dist_',
+    src: '/dist',
   },
   plugins: ['@snowpack/plugin-babel', '@snowpack/plugin-dotenv'],
   install: [
@@ -17,7 +17,8 @@ module.exports = {
   buildOptions: {
     // The build is meant for GitHub pages, so we need to set the path to the
     // GitHub pages URL as `baseUrl`
-    baseUrl: "/lit-style/demo-app/build/"
+    baseUrl: '/lit-style/docs/build/',
+    metaDir: 'snowpack'
   },
   proxy: {
     /* ... */
