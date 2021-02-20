@@ -1,4 +1,4 @@
-import { L as LitElement, h as html, c as css, r as render } from './common/lit-element-6b065c14.js';
+import { L as LitElement, h as html, c as css, u as unsafeCSS, d as directive, N as NodePart, i as isPrimitive, r as render } from './common/lit-element-336867a2.js';
 
 function deepFreeze(obj) {
     if (obj instanceof Map) {
@@ -3322,8 +3322,6 @@ class CodeBlock extends LitElement {
                 margin: 0;
                 padding: 7px 10px;
                 border-radius: 5px 5px 0 0;
-                background: #555;
-                color: #FFF;
                 font-weight: bold;
             }
 
@@ -3336,12 +3334,119 @@ class CodeBlock extends LitElement {
                 white-space: pre-wrap;
                 border-radius: 5px;
                 overflow-x: auto;
-                color: #ffffff;
-                background: #1c1b1b;
             }
 
             .hljs[has-filename] {
                 border-radius: 0 0 5px 5px;
+            }
+
+            @media (prefers-color-scheme: light) {
+                ${unsafeCSS(this.lightThemeCSS)}
+            }
+
+            @media (prefers-color-scheme: dark) {
+                ${unsafeCSS(this.darkThemeCSS)}
+            }
+
+        `;
+
+    }
+
+    static get lightThemeCSS() {
+
+        return css`
+
+            .fileName {
+                background: #c2beb9;
+            }
+
+			.hljs {
+			  display: block;
+			  overflow-x: auto;
+			  padding: 0.5em;
+			  color: #2f3337;
+			  background: #dad7d2;
+			}
+
+			.hljs-comment {
+			  color: #656e77;
+			}
+
+			.hljs-keyword,
+			.hljs-selector-tag,
+			.hljs-meta-keyword,
+			.hljs-doctag,
+			.hljs-section,
+			.hljs-selector-class,
+			.hljs-meta,
+			.hljs-selector-pseudo,
+			.hljs-attr {
+			  color: #015692;
+			}
+
+			.hljs-attribute {
+			  color: #803378;
+			}
+
+			.hljs-name,
+			.hljs-type,
+			.hljs-number,
+			.hljs-selector-id,
+			.hljs-quote,
+			.hljs-template-tag,
+			.hljs-built_in,
+			.hljs-title,
+			.hljs-literal {
+			  color: #b75501;
+			}
+
+			.hljs-string,
+			.hljs-regexp,
+			.hljs-symbol,
+			.hljs-variable,
+			.hljs-template-variable,
+			.hljs-link,
+			.hljs-selector-attr,
+			.hljs-meta-string {
+			  color: #54790d;
+			}
+
+			.hljs-bullet,
+			.hljs-code {
+			  color: #535a60;
+			}
+
+			.hljs-deletion {
+			  color: #c02d2e;
+			}
+
+			.hljs-addition {
+			  color: #2f6f44;
+			}
+
+			.hljs-emphasis {
+			  font-style: italic;
+			}
+
+			.hljs-strong {
+			  font-weight: bold;
+			}
+
+        `;
+
+    }
+
+    static get darkThemeCSS() {
+
+        return css`
+
+            .fileName {
+                background: #2d2d2d;
+            }
+
+            .hljs {
+                color: #ffffff;
+                background: #1c1b1b;
             }
 
             .hljs-comment {
@@ -3462,44 +3567,8 @@ const observeState = superclass => class extends superclass {
 class LitState {
 
     constructor() {
-
-        this._stateVars = [];
         this._observers = [];
-
-        return new Proxy(this, {
-
-            set: (obj, key, value) => {
-
-                if (this._isStateVar(key)) {
-                    const return_value = obj[key]._handleSet(value);
-                    if (return_value !== undefined) {
-                        return return_value;
-                    }
-                } else if (value instanceof BaseStateVar) {
-                    this._stateVars.push(key);
-                    value._recordRead = () => this._recordRead(key);
-                    value._notifyChange = () => this._notifyChange(key);
-                    obj[key] = value;
-                } else {
-                    obj[key] = value;
-                }
-
-                return true;
-
-            },
-
-            get: (obj, key) => {
-
-                if (obj._isStateVar(key)) {
-                    return obj[key]._handleGet();
-                }
-
-                return obj[key];
-
-            }
-
-        });
-
+        this._initStateVars();
     }
 
     addObserver(observer, keys) {
@@ -3510,8 +3579,68 @@ class LitState {
         this._observers = this._observers.filter(observerObj => observerObj.observer !== observer);
     }
 
-    _isStateVar(key) {
-        return this._stateVars.includes(key);
+    _initStateVars() {
+        if (!this.constructor.stateVars) return;
+        for (let [key, options] of Object.entries(this.constructor.stateVars)) {
+            this._initStateVar(key, options);
+        }
+    }
+
+    _initStateVar(key, options) {
+
+        options = this._parseOptions(options);
+
+        const stateVar = new options.handler({
+            options: options,
+            recordRead: () => this._recordRead(key),
+            notifyChange: () => this._notifyChange(key)
+        });
+
+        Object.defineProperty(
+            this,
+            key,
+            {
+                get() {
+                    return stateVar.get();
+                },
+                set(value) {
+                    if (stateVar.shouldSetValue(value)) {
+                        stateVar.set(value);
+                    }
+                },
+                configurable: true,
+                enumerable: true
+            }
+        );
+
+    }
+
+    _parseOptions(options) {
+
+        if (!options.handler) {
+            options.handler = StateVar;
+        } else {
+
+            // In case of a custom `StateVar` handler is provided, we offer a
+            // second way of providing options to your custom handler class.
+            //
+            // You can decorate a *method* with `@stateVar()` instead of a
+            // variable. The method must return an object, and that object will
+            // be assigned to the `options` object.
+            //
+            // Within the method you have access to the `this` context. So you
+            // can access other properties and methods from your state class.
+            // And you can add arrow function callbacks where you can access
+            // `this`. This provides a lot of possibilities for a custom
+            // handler class.
+            if (options.propertyMethod && options.propertyMethod.kind === 'method') {
+                Object.assign(options, options.propertyMethod.descriptor.value.call(this));
+            }
+
+        }
+
+        return options;
+
     }
 
     _recordRead(key) {
@@ -3528,36 +3657,33 @@ class LitState {
 }
 
 
-class BaseStateVar {
-    _handleGet() {}
-    _handleSet(value) {}
-}
+class StateVar {
 
-
-class StateVar extends BaseStateVar {
-
-    constructor(initialValue) {
-        super();
-        this._value = initialValue;
+    constructor(args) {
+        this.options = args.options; // The options given in the `stateVar` declaration
+        this.recordRead = args.recordRead; // Callback to indicate the `stateVar` is read
+        this.notifyChange = args.notifyChange; // Callback to indicate the `stateVar` value has changed
+        this.value = undefined; // The initial value
     }
 
-    _handleGet() {
-        this._recordRead();
-        return this._value;
+    // Called when the `stateVar` on the `State` class is read.
+    get() {
+        this.recordRead();
+        return this.value;
     }
 
-    _handleSet(value) {
-        if (this._value !== value) {
-            this._value = value;
-            this._notifyChange();
-        }
+    // Returns whether the given `value` should be passed on to the `set()`
+    // method. Can be used for validation and/or optimization.
+    shouldSetValue(value) {
+        return this.value !== value;
     }
 
-}
+    // Called when the `stateVar` on the `State` class is set.
+    set(value) {
+        this.value = value;
+        this.notifyChange();
+    }
 
-
-function stateVar(defaultValue) {
-    return new StateVar(defaultValue);
 }
 
 
@@ -3670,17 +3796,39 @@ const LitDocsStyle = litStyle(css`
     }
 
     a {
-        color: #384147;
+        color: var(--text-color);
+    }
+
+    table {
+        border-collapse: collapse;
+    }
+
+    table tr th,
+    table tr td {
+        border: 1px var(--border-color) solid;
+        padding: 10px;
+    }
+
+    table tr th {
+        text-align: left;
     }
 
     code {
         display: inline-block;
         padding: 2px 6px;
         margin: 1px;
-        background: #444;
         border-radius: 5px;
-        color: white;
+        background: #dad7d2;
         white-space: pre;
+    }
+
+    @media (prefers-color-scheme: dark) {
+
+        code {
+            background: #444;
+            color: white;
+        }
+
     }
 
     .demoComponents {
@@ -3772,26 +3920,20 @@ customElements.define('cross-icon', CrossIcon);
 
 class LitDocsUiState extends LitState {
 
-    constructor() {
-        super();
-        this.pages = stateVar();
-        this.page = stateVar();
-        this.showMenu = stateVar();
-        this.useHash = stateVar(true);
-    }
+    useHash = true;
 
-    /*static get stateVars() {
+    static get stateVars() {
         return {
             pages: {},
             path: {},
             page: {},
             showMenu: {}
         }
-    }*/
+    }
 
     initPageByPath(path) {
 
-        if (!path || path === '/' || path === '' || path === '#') {
+        if (!path || path === '/') {
             this.page = this.pages[0];
             return;
         }
@@ -3800,10 +3942,6 @@ class LitDocsUiState extends LitState {
 
         if (path[0] === '/') {
             path = path.substr(1);
-        }
-
-        if (this.useHash && path.split('#').length > 1) {
-            path = path.split('#')[1];
         }
 
         this._setPageByPath(path, this.pages);
@@ -3818,21 +3956,15 @@ class LitDocsUiState extends LitState {
 
         path = path.slice(); // make a copy
 
-        if (this.useHash) {
-            path = path.split('#')[1] || '';
-        } else {
+        if (
+            path.substr(0, 7) === 'http://'
+            || path.substr(0, 8) === 'https://'
+        ) {
+            path = path.split('/').slice(3).join('/');
+        }
 
-            if (!path) {
-                path = '/';
-            }
-
-            if (
-                path.substr(0, 7) === 'http://'
-                || path.substr(0, 8) === 'https://'
-            ) {
-                path = path.split('/').slice(3).join('/');
-            }
-
+        if (!path) {
+            path = '/';
         }
 
         this.initPageByPath(path);
@@ -3850,41 +3982,17 @@ class LitDocsUiState extends LitState {
 
     }
 
-    handlePageLinkClick(event) {
-
-        if (event.ctrlKey || event.shiftKey) {
-            // Ctrl/shift click opens a `<a>` link in new tab/window, so when
-            // one of these keys are pressed, don't override normal behavior.
-            return
-        }
-
-        event.preventDefault();
-
-        let target = event.target;
-        let href = event.target.href;
-
-        while (!href) {
-            target = target.parentNode;
-            href = target.href;
-        }
-
-        if (href) {
-            this.navToPath(href);
-        }
-
-    }
-
     handlePopState() {
         if (this.useHash) {
-            this.navToPath(window.location.hash, false);
+            this.navToPath(window.location.hash.substr(1), false);
         } else {
-            this.navToPath(window.location.pathname, false);
+            this.navToPath(window.location.pathname + window.location.hash, false);
         }
     }
 
     _setPageByPath(path, pages) {
 
-        const firstPathPart = path.split('/')[0];
+        const firstPathPart = path.split('#')[0].split('/')[0];
 
         if (!firstPathPart) {
             return;
@@ -3934,6 +4042,7 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
     connectedCallback() {
         super.connectedCallback();
         this._initState();
+        this._initBaseStyle();
         this._fixMenuWidthOnPageWidthChange();
         this._initPopStateListener();
     }
@@ -3944,9 +4053,55 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
     }
 
     _initState() {
+
         litDocsUiState.useHash = this.useHash;
         litDocsUiState.pages = this.pages;
-        litDocsUiState.initPageByPath(window.location.pathname + window.location.hash);
+
+        if (this.useHash) {
+            litDocsUiState.initPageByPath(window.location.hash.substr(1));
+        } else {
+            litDocsUiState.initPageByPath(window.location.pathname + window.location.hash);
+        }
+
+    }
+
+    _initBaseStyle() {
+
+        const baseStyleTag = document.createElement('style');
+
+        baseStyleTag.textContent = css`
+
+            * {
+                --background-color: rgb(237, 236, 234);
+            }
+
+            @media (prefers-color-scheme: dark) {
+
+                * {
+                    --text-color: rgb(201, 209, 217);
+                    --background-color: #313131;
+                }
+
+            }
+
+            html, body {
+                margin: 0;
+                padding: 0;
+                min-height: 100vh;
+                background: var(--background-color);
+                color: var(--text-color);
+                font-family: Arial;
+            }
+
+            a {
+                color: var(--text-color);
+            }
+
+        `;
+
+        const headTag = document.getElementsByTagName('head')[0];
+        headTag.appendChild(baseStyleTag);
+
     }
 
     _fixMenuWidth() {
@@ -3983,7 +4138,7 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
 
                     <div id="menuSidebarContent">
                         <header>
-                            <a href="/" @click=${event => litDocsUiState.handlePageLinkClick(event)}>${this.docsTitle}</a>
+                            <a href="/" @click=${event => this.handleMenuItemClick(event, '/')}>${this.docsTitle}</a>
                         </header>
                         <nav class="mainMenu menu">${this.navTree(this.pages)}</nav>
                     </div>
@@ -4044,9 +4199,9 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
                     return html`
                         <a
                             class="menuItem menuItemLink"
-                            nav-level=${level}
                             href=${href}
-                            @click=${event => litDocsUiState.handlePageLinkClick(event)}
+                            @click=${event => this.handleMenuItemClick(event, path)}
+                            nav-level=${level}
                             ?active=${page === litDocsUiState.page}
                         >
                             ${navContent}
@@ -4086,6 +4241,11 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
 
     }
 
+    handleMenuItemClick(event, path) {
+        event.preventDefault();
+        litDocsUiState.navToPath(path);
+    }
+
     handleHamburgerMenuClick() {
 
         if (litDocsUiState.showMenu) {
@@ -4106,6 +4266,15 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
                 box-sizing: border-box;
                 --left-sidebar-width: 250px;
                 --header-height: 45px;
+                --menu-bg-color: #e4e2dd;
+                --border-color: #ccc;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                * {
+                    --menu-bg-color: #2b2b2b;
+                    --border-color: #444;
+                }
             }
 
             #layout {
@@ -4124,13 +4293,14 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
                 justify-content: center;
                 align-items: center;
                 height: var(--header-height);
-                background: #bcb9b2;
-                border-bottom: 1px #999 solid;
+                background: var(--menu-bg-color);
+                border-bottom: 1px var(--border-color) solid;
             }
 
             #menuSidebarContent header a {
                 display: inline-block;
                 padding: 5px;
+                color: var(--text-color);
                 font-weight: 600;
                 text-decoration: none;
                 font-size: 20px;
@@ -4146,26 +4316,15 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
                 align-items: center;
                 margin: 0;
                 padding: 8px;
-                border-bottom: 1px solid #999;
-                xborder-width: 1px 0;
+                border-bottom: 1px solid var(--border-color);
+                color: var(--text-color);
                 text-align: left;
                 text-decoration: none;
             }
 
             .menuItemCategory {
                 font-weight: bold;
-                color: #384147;
-                xmargin-top: 5px;
-                xpadding-top: 15px;
-                xpadding-bottom: 15px;
-            }
-
-            .menuItemSubmenu {
-                xmargin: 5px 0;
-            }
-
-            .menuItemLink {
-                xbackground: #C7C3BB;
+                color: var(--text-color);
             }
 
             .menuItemLink {
@@ -4175,7 +4334,16 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
             .menuItem[active],
             .menuItemLink:hover {
                 background: #DAD7D2;
-                border-color: #999;
+                border-color: var(--border-color);
+            }
+
+            @media (prefers-color-scheme: dark) {
+
+                .menuItem[active],
+                .menuItemLink:hover {
+                    background: #393939;
+                }
+
             }
 
             .menuItem[nav-level="1"] {
@@ -4218,8 +4386,8 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
                     position: relative;
                     width: 100%;
                     max-width: var(--left-sidebar-width);
-                    background: #bcb9b2;
-                    border-right: 1px #999 solid;
+                    background: var(--menu-bg-color);
+                    border-right: 1px var(--border-color) solid;
                 }
 
                 #sideBarOpener {
@@ -4295,30 +4463,35 @@ class LitDocsLink extends LitDocsStyle(LitElement) {
 
     static get properties() {
         return {
-            href: {type: String}
+            path: {type: String}
         };
     }
 
     constructor() {
         super();
-        this.href = '';
+        this.path = '';
     }
 
     render() {
         // Don't leave no spaces in the template, because the host is an inline
         // element.
-        return html`<a href=${this._href}
-            @click=${event => litDocsUiState.handlePageLinkClick(event)}
+        return html`<a href=${(litDocsUiState.useHash ? '#' : '') + this.path}
+            @click=${this.handleLinkClick}
         ><slot></slot></a>`;
+    }
+
+    handleLinkClick(event) {
+        event.preventDefault();
+        litDocsUiState.navToPath(this.path);
     }
 
     get _href() {
 
         if (litDocsUiState.useHash) {
-            return '#' + this.href;
+            return '#' + this.path;
         }
 
-        return this.href;
+        return this.path;
 
     }
 
@@ -4344,12 +4517,22 @@ class ShowcaseBox extends LitElement {
     static get styles() {
 
         return css`
+
             :host {
                 display: block;
                 padding: 15px;
                 background: #DAD7D2;
                 border: 1px #666 solid;
             }
+
+            @media (prefers-color-scheme: dark) {
+
+                :host {
+                    background: rgb(65, 65, 65);
+                }
+
+            }
+
         `;
 
     }
@@ -4358,6 +4541,48 @@ class ShowcaseBox extends LitElement {
 
 
 customElements.define('showcase-box', ShowcaseBox);
+
+/**
+ * @license
+ * Copyright (c) 2017 The Polymer Project Authors. All rights reserved.
+ * This code may only be used under the BSD style license found at
+ * http://polymer.github.io/LICENSE.txt
+ * The complete set of authors may be found at
+ * http://polymer.github.io/AUTHORS.txt
+ * The complete set of contributors may be found at
+ * http://polymer.github.io/CONTRIBUTORS.txt
+ * Code distributed by Google as part of the polymer project is also
+ * subject to an additional IP rights grant found at
+ * http://polymer.github.io/PATENTS.txt
+ */
+// For each part, remember the value that was last rendered to the part by the
+// unsafeHTML directive, and the DocumentFragment that was last set as a value.
+// The DocumentFragment is used as a unique key to check if the last value
+// rendered to the part was with unsafeHTML. If not, we'll always re-render the
+// value passed to unsafeHTML.
+const previousValues = new WeakMap();
+/**
+ * Renders the result as HTML, rather than text.
+ *
+ * Note, this is unsafe to use with any user-provided input that hasn't been
+ * sanitized or escaped, as it may lead to cross-site-scripting
+ * vulnerabilities.
+ */
+const unsafeHTML = directive((value) => (part) => {
+    if (!(part instanceof NodePart)) {
+        throw new Error('unsafeHTML can only be used in text bindings');
+    }
+    const previousValue = previousValues.get(part);
+    if (previousValue !== undefined && isPrimitive(value) &&
+        value === previousValue.value && part.value === previousValue.fragment) {
+        return;
+    }
+    const template = document.createElement('template');
+    template.innerHTML = value; // innerHTML casts to string internally
+    const fragment = document.importNode(template.content, true);
+    part.setValue(fragment);
+    previousValues.set(part, { value, fragment });
+});
 
 // Global container of all the anchors on the page. This is global so that the
 // `goToAnchor()` function can be used from any component.
@@ -4400,9 +4625,12 @@ function goToAnchor(anchorName) {
 
     if (!anchorName) return;
 
-    scrollToAnchor(anchorName);
+    // `setTimeout` is used to queue the task at the end of the execution
+    // stack, so that any page change rendering has finished.
+    window.setTimeout(() => scrollToAnchor(anchorName));
 
-    // Do it another time when the full document has loaded
+    // Execute `scrollToAnchor()` again when the page has fully loaded. Because
+    // when other components load, it could change the scroll offset.
     window.addEventListener('load', event => {
         scrollToAnchor(anchorName);
     });
@@ -4466,8 +4694,7 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
 
     _addHashChangeListener() {
         this.hashChangeCallback = event => {
-            goToAnchor(event.newURL.split('#').slice(-1)[0]);
-            this._renderAnchors();
+            this.loadAnchorFromUrl(event.newURL);
         };
         window.addEventListener('hashchange', this.hashChangeCallback);
     }
@@ -4477,9 +4704,17 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
     }
 
     _loadInitialAnchor() {
-        const hashes = window.location.hash.split('#');
-        const lastHash = hashes.pop();
-        goToAnchor(lastHash);
+        this.loadAnchorFromUrl(window.location.href);
+    }
+
+    loadAnchorFromUrl(url) {
+
+        if (litDocsUiState.useHash && url.split('#').length < 3) {
+            return;
+        }
+
+        goToAnchor(url.split('#').slice(-1)[0]);
+
     }
 
     _addAnchors() {
@@ -4510,13 +4745,9 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
 
     _addAnchor(element) {
 
-        const elementText = element.textContent;
-        const anchorName = this._getAnchorName(elementText);
-
         const anchorData = {
-            anchorName,
-            element,
-            elementText
+            anchorName: this._getAnchorName(element),
+            element
         };
 
         ANCHORS.push(anchorData);
@@ -4526,7 +4757,7 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
     }
 
     _renderAnchors() {
-        for (let anchor of ANCHORS) {
+        for (let anchor of this._addedAnchors) {
             this._renderAnchor(anchor);
         }
     }
@@ -4536,7 +4767,7 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
         const active = window.location.hash.substr(1) === anchor.anchorName;
 
         const template = html`
-            <span>${anchor.elementText}</span>
+            <span>${unsafeHTML(anchor.element.innerHTML)}</span>
             <a
                 class="headingAnchor"
                 href=${window.location.pathname + this._baseHash + '#' + anchor.anchorName}
@@ -4569,9 +4800,9 @@ const LitDocsAnchors = superclass => class extends litDocsAnchorsStyles(supercla
 
     }
 
-    _getAnchorName(elementText) {
+    _getAnchorName(element) {
 
-        const baseAnchorName = elementText.replace(/ /g, '-').replace(/[^\w-_\.]/gi, '').toLowerCase();
+        const baseAnchorName = element.textContent.replace(/ /g, '-').replace(/[^\w-_\.]/gi, '').toLowerCase();
         let anchorName = baseAnchorName;
         let alreadyExistingAnchor = getAnchorData(anchorName);
         let counter = 1;
