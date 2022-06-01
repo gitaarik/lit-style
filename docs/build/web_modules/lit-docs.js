@@ -4090,7 +4090,7 @@ class LitDocsUI extends observeState(LitDocsStyle(LitElement)) {
                 min-height: 100vh;
                 background: var(--background-color);
                 color: var(--text-color);
-                font-family: Arial;
+                font-family: Arial, sans-serif;
             }
 
             a {
