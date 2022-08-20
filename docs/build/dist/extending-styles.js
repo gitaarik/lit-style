@@ -31,13 +31,10 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.it
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 import { customElement, LitElement, html } from '../web_modules/lit-element.js';
+import { LitDocsContent } from '../web_modules/lit-docs.js';
 import '../web_modules/lit-docs.js';
-import './introduction-page.js';
-import './basic-usage/index.js';
-import './style-precedence/index.js';
-import './extending-styles.js';
-export let LitStyleDocs = _decorate([customElement('lit-style-docs')], function (_initialize, _LitElement) {
-  class LitStyleDocs extends _LitElement {
+export let ExtendingStyles = _decorate([customElement('extending-styles')], function (_initialize, _LitDocsContent) {
+  class ExtendingStyles extends _LitDocsContent {
     constructor(...args) {
       super(...args);
 
@@ -47,35 +44,34 @@ export let LitStyleDocs = _decorate([customElement('lit-style-docs')], function 
   }
 
   return {
-    F: LitStyleDocs,
+    F: ExtendingStyles,
     d: [{
       kind: "method",
       key: "render",
       value: function render() {
-        return html`<lit-docs-ui docsTitle="LitStyle" .pages=${this.pages}></lit-docs-ui>`;
+        return html`
+
+            <h1>Extending styles</h1>
+
+            <p>
+                You can extend an earlier created mixin by wrapping the
+                extended css in it:
+            </p>
+
+            <h2>Usage</h2>
+
+            <p>
+                <code-block .code=${this.usageCode}></code-block>
+            </p>
+
+        `;
       }
     }, {
       kind: "get",
-      key: "pages",
-      value: function pages() {
-        return [{
-          title: 'Introduction',
-          path: 'introduction-page',
-          template: html`<introduction-page></introduction-page>`
-        }, {
-          title: 'Basic usage',
-          path: 'basic-usage',
-          template: html`<basic-usage></basic-usage>`
-        }, {
-          title: 'Style precedence',
-          path: 'style-precedence',
-          template: html`<style-precedence></style-precedence>`
-        }, {
-          title: 'Extending styles',
-          path: 'extending-styles',
-          template: html`<extending-styles></extending-styles>`
-        }];
+      key: "usageCode",
+      value: function usageCode() {
+        return 'const basicStyle = litStyle(css`p { font-size: 3px; }`);\n' + 'const extendedStyle = basicStyle(css`input { font-size: 2px; }`);';
       }
     }]
   };
-}, LitElement);
+}, LitDocsContent(LitElement));

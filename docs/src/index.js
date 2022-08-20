@@ -1,8 +1,9 @@
 import { customElement, LitElement, html } from 'lit-element';
 import 'lit-docs';
+import './introduction-page';
 import './basic-usage/index';
 import './style-precedence/index';
-import './introduction-page';
+import './extending-styles';
 
 
 @customElement('lit-style-docs')
@@ -28,6 +29,11 @@ export class LitStyleDocs extends LitElement {
                 title: 'Style precedence',
                 path: 'style-precedence',
                 template: html`<style-precedence></style-precedence>`
+            },
+            {
+                title: 'Extending styles',
+                path: 'extending-styles',
+                template: html`<extending-styles></extending-styles>`
             },
         ];
     }

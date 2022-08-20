@@ -1,18 +1,33 @@
 export function litStyle(myStyles) {
 
-    return superclass => class extends superclass {
+    return wrappedEl => {
 
-        static getStyles() {
+        /*
+         * This allows to use a `litStyle()` generated function to extend
+         * another stylesheet:
+         *
+         *   const basicStyle = litStyle(css`p { font-size: 3px; }`);
+         *   const extendedStyle = basicStyle(css`input { font-size: 2px; }`);
+         */
+        if (typeof wrappedEl === 'object' && 'cssText' in wrappedEl) {
+          return litStyle([myStyles, wrappedEl]);
+        }
 
-            const styles = super.getStyles();
+        return class extends wrappedEl {
 
-            if (!styles) {
-                return myStyles;
-            } else if (Array.isArray(styles)) {
-                return [myStyles, ...styles];
-            } else {
-                return [myStyles, styles];
-            }
+          static getStyles() {
+
+              const styles = super.getStyles();
+
+              if (!styles) {
+                  return myStyles;
+              } else if (Array.isArray(styles)) {
+                  return [myStyles, ...styles];
+              } else {
+                  return [myStyles, styles];
+              }
+
+          }
 
         }
 
