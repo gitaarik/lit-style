@@ -82,7 +82,7 @@ export let StylePrecedence = _decorate([customElement('style-precedence')], func
 import { litStyle } from 'lit-element-style';
 
 
-const myStyles = litStyle(css\`
+const baseStyles = litStyle(css\`
 
     h1 {
         color: green;
@@ -103,7 +103,7 @@ const myStyles = litStyle(css\`
 \`);
 
 
-const moreImportantStyles = litStyle(css\`
+const customStyles = litStyle(css\`
 
     h1 {
         color: red;
@@ -117,7 +117,7 @@ const moreImportantStyles = litStyle(css\`
 
 
 @customElement('precedence-demo')
-export class PrecedenceDemo extends moreImportantStyles(myStyles(LitElement)) {
+export class PrecedenceDemo extends customStyles(baseStyles(LitElement)) {
 
     render() {
 

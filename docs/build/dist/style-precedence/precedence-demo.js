@@ -33,7 +33,7 @@ function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 import { customElement, LitElement, html, css } from '../../web_modules/lit-element.js';
 import '../../web_modules/lit-docs.js';
 import { litStyle } from '../lit-style.js';
-const myStyles = litStyle(css`
+const baseStyles = litStyle(css`
 
     h1 {
         color: green;
@@ -52,7 +52,7 @@ const myStyles = litStyle(css`
     }
 
 `);
-const moreImportantStyles = litStyle(css`
+const customStyles = litStyle(css`
 
     h1 {
         color: red;
@@ -63,8 +63,8 @@ const moreImportantStyles = litStyle(css`
     }
 
 `);
-export let PrecedenceDemo = _decorate([customElement('precedence-demo')], function (_initialize, _moreImportantStyles) {
-  class PrecedenceDemo extends _moreImportantStyles {
+export let PrecedenceDemo = _decorate([customElement('precedence-demo')], function (_initialize, _customStyles) {
+  class PrecedenceDemo extends _customStyles {
     constructor(...args) {
       super(...args);
 
@@ -101,4 +101,4 @@ export let PrecedenceDemo = _decorate([customElement('precedence-demo')], functi
       }
     }]
   };
-}, moreImportantStyles(myStyles(LitElement)));
+}, customStyles(baseStyles(LitElement)));
