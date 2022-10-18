@@ -55,10 +55,10 @@ export let BasicUsage = _decorate([customElement('basic-usage')], function (_ini
             <h1>Basic Usage</h1>
 
             <p>
-                The <code>litStyle()</code> function takes some css
-                and returns a mixin that you can use on your
-                <code>LitElement</code> components. Then they will
-                include those styles.
+                The <code>litStyle()</code> function takes a
+                <a href="https://lit.dev/docs/components/styles/" target="_blank">Lit CSS object</a>
+                and returns a mixin that you can use on your <code>LitElement</code>
+                components. Then they will include those styles.
             </p>
 
             <h2>Example:</h2>

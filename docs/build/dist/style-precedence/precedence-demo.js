@@ -63,8 +63,8 @@ const moreImportantStyles = litStyle(css`
     }
 
 `);
-export let PrecedenceDemo = _decorate([customElement('precedence-demo')], function (_initialize, _myStyles) {
-  class PrecedenceDemo extends _myStyles {
+export let PrecedenceDemo = _decorate([customElement('precedence-demo')], function (_initialize, _moreImportantStyles) {
+  class PrecedenceDemo extends _moreImportantStyles {
     constructor(...args) {
       super(...args);
 
@@ -101,4 +101,4 @@ export let PrecedenceDemo = _decorate([customElement('precedence-demo')], functi
       }
     }]
   };
-}, myStyles(moreImportantStyles(LitElement)));
+}, moreImportantStyles(myStyles(LitElement)));

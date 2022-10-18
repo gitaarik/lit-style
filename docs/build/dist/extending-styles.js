@@ -55,22 +55,35 @@ export let ExtendingStyles = _decorate([customElement('extending-styles')], func
 
             <p>
                 You can extend an earlier created mixin by wrapping the
-                extended css in it:
+                extended CSS in it:
             </p>
 
-            <h2>Usage</h2>
+            <p>
+                <code-block .code=${this.extendCode}></code-block>
+            </p>
 
             <p>
-                <code-block .code=${this.usageCode}></code-block>
+                You can also access the original CSS object from the
+                <code>litStyle</code> object:
+            </p>
+
+            <p>
+                <code-block .code=${this.cssObjCode}></code-block>
             </p>
 
         `;
       }
     }, {
       kind: "get",
-      key: "usageCode",
-      value: function usageCode() {
-        return 'const basicStyle = litStyle(css`p { font-size: 3px; }`);\n' + 'const extendedStyle = basicStyle(css`input { font-size: 2px; }`);';
+      key: "extendCode",
+      value: function extendCode() {
+        return 'const basicStyle = litStyle(css`p { color: green; }`);\n' + 'const extendedStyle = basicStyle(css`input { color: red; }`);';
+      }
+    }, {
+      kind: "get",
+      key: "cssObjCode",
+      value: function cssObjCode() {
+        return 'const cssObj = css`p { color: green; }`\n' + 'const myStyle = litStyle(cssObj);\n' + '\n' + 'myStyle.css === cssObj;\n' + 'myStyle.css.cssText === "p { color: green; }";';
       }
     }]
   };
