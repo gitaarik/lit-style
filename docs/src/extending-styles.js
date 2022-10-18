@@ -14,7 +14,7 @@ export class ExtendingStyles extends LitDocsContent(LitElement) {
 
             <p>
                 You can extend an earlier created mixin by wrapping the
-                extended css in it:
+                extended CSS in it:
             </p>
 
             <p>
@@ -22,8 +22,8 @@ export class ExtendingStyles extends LitDocsContent(LitElement) {
             </p>
 
             <p>
-                You can also access the original css object from the litStyle
-                object:
+                You can also access the original CSS object from the
+                <code>litStyle</code> object:
             </p>
 
             <p>
@@ -36,16 +36,18 @@ export class ExtendingStyles extends LitDocsContent(LitElement) {
 
     get extendCode() {
       return (
-        'const basicStyle = litStyle(css`p { font-size: 3px; }`);\n' +
-        'const extendedStyle = basicStyle(css`input { font-size: 2px; }`);'
+        'const basicStyle = litStyle(css`p { color: green; }`);\n' +
+        'const extendedStyle = basicStyle(css`input { color: red; }`);'
       );
     }
 
     get cssObjCode() {
       return (
-        'const cssObj = css`p { font-size: 3px; }`\n' +
+        'const cssObj = css`p { color: green; }`\n' +
         'const myStyle = litStyle(cssObj);\n' +
-        'myStyle.css === cssObj;'
+        '\n' +
+        'myStyle.css === cssObj;\n' +
+        'myStyle.css.cssText === "p { color: green; }";'
       );
     }
 
