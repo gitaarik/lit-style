@@ -38,7 +38,7 @@ const moreImportantStyles = litStyle(css`
 
 
 @customElement('precedence-demo')
-export class PrecedenceDemo extends myStyles(moreImportantStyles(LitElement)) {
+export class PrecedenceDemo extends moreImportantStyles(myStyles(LitElement)) {
 
     render() {
 

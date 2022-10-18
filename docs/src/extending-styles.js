@@ -17,20 +17,35 @@ export class ExtendingStyles extends LitDocsContent(LitElement) {
                 extended css in it:
             </p>
 
-            <h2>Usage</h2>
+            <p>
+                <code-block .code=${this.extendCode}></code-block>
+            </p>
 
             <p>
-                <code-block .code=${this.usageCode}></code-block>
+                You can also access the original css object from the litStyle
+                object:
+            </p>
+
+            <p>
+                <code-block .code=${this.cssObjCode}></code-block>
             </p>
 
         `;
 
     }
 
-    get usageCode() {
+    get extendCode() {
       return (
         'const basicStyle = litStyle(css`p { font-size: 3px; }`);\n' +
         'const extendedStyle = basicStyle(css`input { font-size: 2px; }`);'
+      );
+    }
+
+    get cssObjCode() {
+      return (
+        'const cssObj = css`p { font-size: 3px; }`\n' +
+        'const myStyle = litStyle(cssObj);\n' +
+        'myStyle.css === cssObj;'
       );
     }
 
