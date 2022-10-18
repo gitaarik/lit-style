@@ -1,8 +1,8 @@
 # LitStyle
 
 This micro library makes it easy to apply some styles to your
-LitElement components with a mixin. This is useful if you want
-to apply some common styles to multiple components.
+[Lit](https://lit.dev/) components with a mixin. This is useful if you want to
+apply some common styles to multiple components.
 
 
 ## Installation
@@ -16,7 +16,7 @@ npm install lit-element-style
 
 ```javascript
 import { litStyle } from 'lit-element-style';
-import { LitElement, css } from 'lit-element';
+import { LitElement, css } from 'lit';
 
 const myStyles = litStyle(css`h1 { color: red; }`);
 
