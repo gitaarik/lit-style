@@ -55,8 +55,8 @@ export let StylePrecedence = _decorate([customElement('style-precedence')], func
             <h1>Style precedence</h1>
 
             <p>
-                The outer most style decorator gets precedence. So if extend
-                from a component that has it's own <code>litStyle()</code>
+                The outer most style decorator gets precedence. So if you
+                extend from a component that has it's own <code>litStyle()</code>
                 decorator, your styles will get precedence.
             </p>
 
