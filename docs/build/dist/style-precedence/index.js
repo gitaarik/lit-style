@@ -55,11 +55,9 @@ export let StylePrecedence = _decorate([customElement('style-precedence')], func
             <h1>Style precedence</h1>
 
             <p>
-                The outer most style decorator gets precedence. So if your
-                component defines styles itself, they get precedence over any
-                mixin that you created with
-                <code>litStyle()</code>. And if you use multiple
-                mixins, the more inner mixins get precedence.
+                The outer most style decorator gets precedence. So if extend
+                from a component that has it's own <code>litStyle()</code>
+                decorator, your styles will get precedence.
             </p>
 
             <h2>Example:</h2>
