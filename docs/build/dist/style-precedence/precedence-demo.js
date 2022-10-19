@@ -47,7 +47,7 @@ const baseStyles = litStyle(css`
         color: yellow;
     }
 
-    p {
+    h4 {
         color: purple;
     }
 
@@ -63,6 +63,9 @@ const customStyles = litStyle(css`
     }
 
 `);
+
+class BaseElement extends baseStyles(LitElement) {}
+
 export let PrecedenceDemo = _decorate([customElement('precedence-demo')], function (_initialize, _customStyles) {
   class PrecedenceDemo extends _customStyles {
     constructor(...args) {
@@ -84,7 +87,7 @@ export let PrecedenceDemo = _decorate([customElement('precedence-demo')], functi
                 <h1>This is a &lt;h1&gt; tag</h1>
                 <h2>This is a &lt;h2&gt; tag</h2>
                 <h3>This is a &lt;h3&gt; tag</h3>
-                <p>This is a &lt;p&gt; tag</p>
+                <h4>This is a &lt;h4&gt; tag</h4>
             </showcase-box>
         `;
       }
@@ -93,6 +96,9 @@ export let PrecedenceDemo = _decorate([customElement('precedence-demo')], functi
       static: true,
       key: "styles",
       value: function styles() {
+        // Styles from the `static get styles()` of the outer most class
+        // get's the highest precedence. This also overrides any
+        // `static get styles()` methods from super classes.
         return css`
             h2 {
                 color: red;
@@ -101,4 +107,4 @@ export let PrecedenceDemo = _decorate([customElement('precedence-demo')], functi
       }
     }]
   };
-}, customStyles(baseStyles(LitElement)));
+}, customStyles(BaseElement));

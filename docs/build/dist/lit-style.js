@@ -27,17 +27,42 @@ export function litStyle(styles) {
 
     return class extends wrappedEl {
       static getStyles() {
-        const superStyles = super.getStyles(); // Note: the `superStyles` are put in front of `styles`, so
-        // that `styles` will get precedence for CSS selectors that
-        // have an equal relevance. Because in CSS, rules that appear
-        // later override rules that appear earlier.
+        const superStyles = super.getStyles();
 
         if (!superStyles) {
           return styles;
-        } else if (Array.isArray(superStyles)) {
-          return [...superStyles, styles];
+        } // The first time this method is called, then the `superStyles`
+        // get precedence over the `styles`. Because this gets the
+        // styles from any `static get styles()` method. That should
+        // get the highest precedence.
+        //
+        // The times this method is called after that, the
+        // `superStyles` are coming from a parent class that implements
+        // the `getStyles()` method, possibly another LitStyle
+        // decorator. These styles should not get precedence, because
+        // the wrapped component extends from these style decorators.
+        // And with extending you expect that you can override things.
+        //
+        // The styles that appear later in the returned array get
+        // precedence, because they override the old ones.
+
+
+        if (this.__lit_style_past_root) {
+          this.__lit_style_past_root = false;
+
+          if (Array.isArray(superStyles)) {
+            return [...superStyles, styles];
+          } else {
+            return [superStyles, styles];
+          }
         } else {
-          return [superStyles, styles];
+          this.__lit_style_past_root = true;
+
+          if (Array.isArray(superStyles)) {
+            return [styles, ...superStyles];
+          } else {
+            return [styles, superStyles];
+          }
         }
       }
 

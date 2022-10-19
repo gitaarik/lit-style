@@ -55,7 +55,7 @@ const baseStyles = litStyle(css\`
         color: yellow;
     }
 
-    p {
+    h4 {
         color: purple;
     }
 
@@ -75,8 +75,11 @@ const customStyles = litStyle(css\`
 \`);
 
 
+class BaseElement extends baseStyles(LitElement) {}
+
+
 @customElement('precedence-demo')
-export class PrecedenceDemo extends customStyles(baseStyles(LitElement)) {
+export class PrecedenceDemo extends customStyles(BaseElement) {
 
     render() {
 
@@ -84,12 +87,15 @@ export class PrecedenceDemo extends customStyles(baseStyles(LitElement)) {
             <h1>This is a &lt;h1&gt; tag</h1>
             <h2>This is a &lt;h2&gt; tag</h2>
             <h3>This is a &lt;h3&gt; tag</h3>
-            <p>This is a &lt;p&gt; tag</p>
+            <h4>This is a &lt;h4&gt; tag</h4>
         \`;
 
     }
 
     static get styles() {
+        // Styles from the \`static get styles()\` of the outer most class
+        // get's the highest precedence. This also overrides any
+        // \`static get styles()\` methods from super classes.
         return css\`
             h2 {
                 color: red;
